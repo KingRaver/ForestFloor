@@ -8,6 +8,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # We are not using C++20 modules yet; disabling scan avoids clang-scan-deps issues on mixed local toolchains.
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
+enable_testing()
+
 option(FF_BUILD_DESKTOP "Build the standalone desktop host stub." ON)
 
 add_subdirectory(packages/dsp-cpp)

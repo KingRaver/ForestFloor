@@ -46,7 +46,7 @@ cmake --build --preset macos-arm64-dev
 cmake --preset macos-arm64-llvm
 cmake --build --preset macos-arm64-llvm
 
-# C++ tests (currently none registered yet)
+# C++ tests
 ctest --test-dir build --output-on-failure
 
 # Rust build/tests
