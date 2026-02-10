@@ -42,10 +42,16 @@ Required lifecycle symbols:
 - `ff_destroy`
 
 Host loader behavior:
-- Dynamically loads binary and resolves metadata symbols first.
+- Applies a trust gate before dynamic load:
+  - plugin path must be under an explicitly configured trusted root via `addTrustedPluginRoot(...)`
+  - untrusted paths are rejected before `dlopen`/`LoadLibrary`
+- Dynamically loads trusted binaries and resolves metadata symbols.
 - Merges declared entrypoint flags with actual symbol presence.
 - Rejects plugin if required lifecycle symbols are missing after merge.
 - Queues isolation-requested plugins and loads non-isolated plugins in process.
+- Important safety note:
+  - `dlopen`/`LoadLibrary` can execute plugin-controlled code during load.
+  - host validation is an admission policy after trust gating, not a pre-execution sandbox.
 
 ## Lifecycle Contract
 1. `ff_create(host_context) -> instance`
@@ -56,6 +62,8 @@ Host loader behavior:
 
 Host runtime APIs:
 - `registerInternalPlugin(...)`
+- `addTrustedPluginRoot(...)`
+- `clearTrustedPluginRoots(...)`
 - `loadPluginBinary(...)`
 - `activatePlugin(...)`
 - `processPlugin(...)`
@@ -69,6 +77,9 @@ Host runtime APIs:
 - Read parameters via provided snapshot handles only.
 
 ## Load Validation Policy (Current)
+Trust gate (before dynamic load):
+- plugin path must be within configured trusted roots.
+
 Hard failures:
 - empty plugin `id` or `name`
 - incompatible SDK major version
@@ -84,6 +95,7 @@ Warnings (accepted with isolation):
 - Plugins with isolation warnings are accepted but marked `requires_isolation`.
 - Host keeps isolation metadata (`isolatedPluginCount`) for scheduling/sandbox handoff.
 - Host now tracks isolation queue/run states (`pendingIsolationCount`, `runningIsolationCount`) and explicit start (`startIsolationSession`).
+- Trust gate controls which binaries are allowed to reach dynamic loading.
 - Current strategy focuses on deterministic admission + scheduling state; isolated execution transport can be swapped behind this API surface.
 
 ## Routing and Automation (Current)

@@ -168,6 +168,9 @@ class Host final {
 
   [[nodiscard]] ValidationReport validateBinary(const PluginDescriptor& descriptor,
                                                 const PluginBinaryInfo& binary_info) const;
+  bool addTrustedPluginRoot(const std::string& root_path);
+  void clearTrustedPluginRoots() noexcept;
+  [[nodiscard]] std::size_t trustedPluginRootCount() const noexcept;
   [[nodiscard]] LoadResult loadPluginBinary(const std::string& binary_path);
   bool registerInternalPlugin(PluginDescriptor descriptor, PluginBinaryInfo binary_info,
                               PluginLifecycleFns lifecycle_fns);
@@ -233,6 +236,7 @@ class Host final {
   std::vector<RegisteredPlugin> plugins_;
   std::vector<Route> routes_;
   std::vector<AutomationLane> automation_lanes_;
+  std::vector<std::string> trusted_plugin_roots_;
 };
 
 }  // namespace ff::plugin_host

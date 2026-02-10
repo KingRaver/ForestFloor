@@ -19,8 +19,10 @@ This policy covers Forest Floor source, build pipeline, release artifacts, and p
 
 ## Plugin Trust Model
 - External plugins are untrusted by default.
-- Host validates SDK compatibility before load.
+- Host requires explicit trusted plugin roots before dynamic loading.
+- Host validates SDK compatibility after a plugin passes trust gate admission.
 - Fail closed on malformed metadata/state.
+- Dynamic library load (`dlopen`/`LoadLibrary`) is not a sandbox boundary.
 
 ## Security Priorities
 1. Protect users from malicious project/plugin payloads.

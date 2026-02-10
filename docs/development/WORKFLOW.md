@@ -15,6 +15,7 @@ Useful flags:
 - `--tools-only`: verify tools/architecture only.
 - `--skip-cpp`: run only Rust checks.
 - `--skip-rust`: run only C++ checks.
+- `--with-non-unit`: include non-unit stress/golden regression tests.
 
 CI parity:
 - GitHub Actions runs the same command in `/Users/jeffspirlock/ForestFloor/.github/workflows/ci.yml`.
@@ -48,6 +49,9 @@ cmake --build --preset macos-arm64-llvm
 
 # C++ tests
 ctest --test-dir build --output-on-failure
+
+# C++ non-unit stress/golden tests
+ctest --test-dir build --output-on-failure -L nonunit
 
 # Rust build/tests
 cargo build --workspace
@@ -100,4 +104,11 @@ Run before opening a PR:
 
 ```bash
 ./tools/scripts/dev-check.sh --clean
+```
+
+## Scheduled/Release Regression Checks
+Run this for release candidates or parity with scheduled CI non-unit checks:
+
+```bash
+./tools/scripts/dev-check.sh --clean --with-non-unit
 ```

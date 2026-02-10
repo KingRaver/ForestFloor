@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <cstdlib>
+#include <filesystem>
 #include <string>
 
 namespace {
@@ -12,10 +13,36 @@ struct InternalPluginState final {
 
 InternalPluginState g_internal_state{};
 
+struct NullCreateState final {
+  std::uint32_t create_calls = 0;
+  std::uint32_t prepare_calls = 0;
+  std::uint32_t destroy_calls = 0;
+};
+
+NullCreateState g_null_create_state{};
+
+struct PrepareFailureState final {
+  std::uint32_t create_calls = 0;
+  std::uint32_t prepare_calls = 0;
+  std::uint32_t destroy_calls = 0;
+  int instance_payload = 0;
+};
+
+PrepareFailureState g_prepare_failure_state{};
+
 std::string requiredEnv(const char* key) {
   const char* value = std::getenv(key);
   assert(value != nullptr);
   return value;
+}
+
+void trustPluginBinaryRoot(ff::plugin_host::Host* host,
+                           const std::string& binary_path) {
+  assert(host != nullptr);
+  const std::filesystem::path path(binary_path);
+  const auto root = path.parent_path();
+  assert(!root.empty());
+  assert(host->addTrustedPluginRoot(root.string()));
 }
 
 ff::plugin_host::PluginBinaryInfo validBinary() {
@@ -67,6 +94,34 @@ void internalReset(void* instance) {
 
 void internalDestroy(void* /*instance*/) {}
 
+void* nullCreate(void* /*host_context*/) {
+  g_null_create_state.create_calls += 1;
+  return nullptr;
+}
+
+bool nullCreatePrepare(void* /*instance*/, double /*sample_rate_hz*/,
+                       std::uint32_t /*max_block_size*/,
+                       std::uint32_t /*channel_config*/) {
+  g_null_create_state.prepare_calls += 1;
+  return true;
+}
+
+void nullCreateDestroy(void* /*instance*/) { g_null_create_state.destroy_calls += 1; }
+
+void* prepareFailureCreate(void* /*host_context*/) {
+  g_prepare_failure_state.create_calls += 1;
+  return &g_prepare_failure_state.instance_payload;
+}
+
+bool prepareFailurePrepare(void* /*instance*/, double /*sample_rate_hz*/,
+                           std::uint32_t /*max_block_size*/,
+                           std::uint32_t /*channel_config*/) {
+  g_prepare_failure_state.prepare_calls += 1;
+  return false;
+}
+
+void prepareFailureDestroy(void* /*instance*/) { g_prepare_failure_state.destroy_calls += 1; }
+
 void rejectsIncompatibleSdkMajor() {
   ff::plugin_host::Host host;
   auto binary = validBinary();
@@ -87,7 +142,9 @@ void rejectsMissingEntrypoints() {
 
 void queuesIsolatedPluginAndStartsSession() {
   ff::plugin_host::Host host;
-  const auto result = host.loadPluginBinary(requiredEnv("FF_TEST_PLUGIN_ISOLATED"));
+  const auto path = requiredEnv("FF_TEST_PLUGIN_ISOLATED");
+  trustPluginBinaryRoot(&host, path);
+  const auto result = host.loadPluginBinary(path);
   assert(result.status == ff::plugin_host::LoadStatus::kQueuedForIsolation);
   assert(result.validation.accepted);
   assert(result.validation.requires_isolation);
@@ -104,9 +161,84 @@ void queuesIsolatedPluginAndStartsSession() {
 
 void rejectsDynamicPluginWithMissingProcessSymbol() {
   ff::plugin_host::Host host;
-  const auto result = host.loadPluginBinary(requiredEnv("FF_TEST_PLUGIN_INVALID"));
+  const auto path = requiredEnv("FF_TEST_PLUGIN_INVALID");
+  trustPluginBinaryRoot(&host, path);
+  const auto result = host.loadPluginBinary(path);
   assert(result.status == ff::plugin_host::LoadStatus::kRejected);
   assert(!result.validation.accepted);
+  assert(host.pluginCount() == 0);
+}
+
+void rejectsActivationWhenCreateReturnsNull() {
+  ff::plugin_host::Host host;
+  g_null_create_state = {};
+
+  auto binary = validBinary();
+  assert(host.registerInternalPlugin(
+      {"ff.internal.null-create", "Null Create"}, binary,
+      ff::plugin_host::PluginLifecycleFns{
+          .create = nullCreate,
+          .prepare = nullCreatePrepare,
+          .process = internalProcess,
+          .reset = internalReset,
+          .destroy = nullCreateDestroy,
+      }));
+
+  assert(!host.activatePlugin("ff.internal.null-create", 48'000.0, 256, 0));
+  assert(g_null_create_state.create_calls == 1);
+  assert(g_null_create_state.prepare_calls == 0);
+  assert(g_null_create_state.destroy_calls == 0);
+
+  const auto counters = host.pluginRuntimeCounters("ff.internal.null-create");
+  assert(counters.prepare_calls == 0);
+  assert(counters.process_calls == 0);
+  assert(counters.reset_calls == 0);
+  assert(counters.deactivate_calls == 0);
+
+  assert(!host.processPlugin("ff.internal.null-create", 64));
+  assert(!host.resetPlugin("ff.internal.null-create"));
+  assert(!host.deactivatePlugin("ff.internal.null-create"));
+}
+
+void destroysInstanceWhenPrepareFails() {
+  ff::plugin_host::Host host;
+  g_prepare_failure_state = {};
+
+  auto binary = validBinary();
+  assert(host.registerInternalPlugin(
+      {"ff.internal.prepare-failure", "Prepare Failure"}, binary,
+      ff::plugin_host::PluginLifecycleFns{
+          .create = prepareFailureCreate,
+          .prepare = prepareFailurePrepare,
+          .process = internalProcess,
+          .reset = internalReset,
+          .destroy = prepareFailureDestroy,
+      }));
+
+  assert(!host.activatePlugin("ff.internal.prepare-failure", 48'000.0, 256, 0));
+  assert(g_prepare_failure_state.create_calls == 1);
+  assert(g_prepare_failure_state.prepare_calls == 1);
+  assert(g_prepare_failure_state.destroy_calls == 1);
+
+  const auto counters = host.pluginRuntimeCounters("ff.internal.prepare-failure");
+  assert(counters.prepare_calls == 0);
+  assert(counters.process_calls == 0);
+  assert(counters.reset_calls == 0);
+  assert(counters.deactivate_calls == 0);
+
+  assert(!host.processPlugin("ff.internal.prepare-failure", 64));
+  assert(!host.resetPlugin("ff.internal.prepare-failure"));
+  assert(!host.deactivatePlugin("ff.internal.prepare-failure"));
+}
+
+void rejectsDynamicPluginOutsideTrustedRoots() {
+  ff::plugin_host::Host host;
+  const auto path = requiredEnv("FF_TEST_PLUGIN_VALID");
+  const auto result = host.loadPluginBinary(path);
+  assert(result.status == ff::plugin_host::LoadStatus::kRejected);
+  assert(!result.validation.accepted);
+  assert(result.validation.issues.size() == 1);
+  assert(result.validation.issues[0].code == "trust.path.untrusted");
   assert(host.pluginCount() == 0);
 }
 
@@ -125,7 +257,9 @@ void loadsInternalAndExternalPluginsViaSdkAndRunsLifecycle() {
       });
   assert(internal_registered);
 
-  const auto external_result = host.loadPluginBinary(requiredEnv("FF_TEST_PLUGIN_VALID"));
+  const auto external_path = requiredEnv("FF_TEST_PLUGIN_VALID");
+  trustPluginBinaryRoot(&host, external_path);
+  const auto external_result = host.loadPluginBinary(external_path);
   assert(external_result.status == ff::plugin_host::LoadStatus::kLoadedInProcess);
   assert(external_result.validation.accepted);
   assert(external_result.plugin_id == "ff.test.valid");
@@ -167,7 +301,9 @@ void managesRoutesAndAutomationLanes() {
           .reset = internalReset,
           .destroy = internalDestroy,
       }));
-  assert(host.loadPluginBinary(requiredEnv("FF_TEST_PLUGIN_VALID")).validation.accepted);
+  const auto external_path = requiredEnv("FF_TEST_PLUGIN_VALID");
+  trustPluginBinaryRoot(&host, external_path);
+  assert(host.loadPluginBinary(external_path).validation.accepted);
 
   assert(host.setRoute({.source_id = ff::plugin_host::kRouteHostInput,
                         .destination_id = "ff.internal.clock",
@@ -215,6 +351,7 @@ void managesRoutesAndAutomationLanes() {
 void rejectsDuplicateDynamicPluginId() {
   ff::plugin_host::Host host;
   const auto valid_path = requiredEnv("FF_TEST_PLUGIN_VALID");
+  trustPluginBinaryRoot(&host, valid_path);
   const auto first = host.loadPluginBinary(valid_path);
   const auto second = host.loadPluginBinary(valid_path);
   assert(first.status == ff::plugin_host::LoadStatus::kLoadedInProcess);
@@ -227,8 +364,11 @@ void rejectsDuplicateDynamicPluginId() {
 int main() {
   rejectsIncompatibleSdkMajor();
   rejectsMissingEntrypoints();
+  rejectsDynamicPluginOutsideTrustedRoots();
   queuesIsolatedPluginAndStartsSession();
   rejectsDynamicPluginWithMissingProcessSymbol();
+  rejectsActivationWhenCreateReturnsNull();
+  destroysInstanceWhenPrepareFails();
   loadsInternalAndExternalPluginsViaSdkAndRunsLifecycle();
   managesRoutesAndAutomationLanes();
   rejectsDuplicateDynamicPluginId();

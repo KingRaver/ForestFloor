@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -86,13 +87,20 @@ int main() {
   bool external_loaded_in_process = false;
   std::string external_plugin_id;
   if (external_path != nullptr) {
-    const auto load_result = plugin_host.loadPluginBinary(external_path);
-    external_plugin_id = load_result.plugin_id;
-    external_loaded_in_process =
-        load_result.status == ff::plugin_host::LoadStatus::kLoadedInProcess;
-    std::cout << "External plugin load status: "
-              << static_cast<int>(load_result.status) << " ("
-              << load_result.message << ")\n";
+    const std::filesystem::path plugin_path(external_path);
+    const std::filesystem::path plugin_root = plugin_path.parent_path();
+    if (!plugin_root.empty() &&
+        plugin_host.addTrustedPluginRoot(plugin_root.string())) {
+      const auto load_result = plugin_host.loadPluginBinary(external_path);
+      external_plugin_id = load_result.plugin_id;
+      external_loaded_in_process =
+          load_result.status == ff::plugin_host::LoadStatus::kLoadedInProcess;
+      std::cout << "External plugin load status: "
+                << static_cast<int>(load_result.status) << " ("
+                << load_result.message << ")\n";
+    } else {
+      std::cout << "External plugin load skipped: failed to trust plugin root\n";
+    }
   }
 
   plugin_host.setRoute({.source_id = ff::plugin_host::kRouteHostInput,

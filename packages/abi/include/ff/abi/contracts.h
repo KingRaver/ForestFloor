@@ -1,10 +1,17 @@
 #ifndef FF_ABI_CONTRACTS_H_
 #define FF_ABI_CONTRACTS_H_
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+#if defined(__cplusplus)
+#define FF_STATIC_ASSERT(condition, message) static_assert(condition, message)
+#else
+#define FF_STATIC_ASSERT(condition, message) _Static_assert(condition, message)
 #endif
 
 enum {
@@ -74,8 +81,45 @@ typedef struct ff_parameter_update_t {
   uint32_t reserved;
 } ff_parameter_update_t;
 
+FF_STATIC_ASSERT(sizeof(ff_note_event_t) == 8, "ff_note_event_t size must be 8 bytes");
+FF_STATIC_ASSERT(offsetof(ff_note_event_t, velocity) == 4,
+                 "ff_note_event_t velocity offset must be 4 bytes");
+
+FF_STATIC_ASSERT(sizeof(ff_trigger_event_t) == 8,
+                 "ff_trigger_event_t size must be 8 bytes");
+FF_STATIC_ASSERT(offsetof(ff_trigger_event_t, velocity) == 4,
+                 "ff_trigger_event_t velocity offset must be 4 bytes");
+
+FF_STATIC_ASSERT(sizeof(ff_event_payload_t) == 8,
+                 "ff_event_payload_t size must be 8 bytes");
+
+FF_STATIC_ASSERT(sizeof(ff_event_t) == 32, "ff_event_t size must be 32 bytes");
+FF_STATIC_ASSERT(offsetof(ff_event_t, timeline_sample) == 0,
+                 "ff_event_t timeline_sample offset must be 0 bytes");
+FF_STATIC_ASSERT(offsetof(ff_event_t, block_offset) == 8,
+                 "ff_event_t block_offset offset must be 8 bytes");
+FF_STATIC_ASSERT(offsetof(ff_event_t, source_id) == 12,
+                 "ff_event_t source_id offset must be 12 bytes");
+FF_STATIC_ASSERT(offsetof(ff_event_t, event_type) == 16,
+                 "ff_event_t event_type offset must be 16 bytes");
+FF_STATIC_ASSERT(offsetof(ff_event_t, payload) == 20,
+                 "ff_event_t payload offset must be 20 bytes");
+
+FF_STATIC_ASSERT(sizeof(ff_parameter_update_t) == 16,
+                 "ff_parameter_update_t size must be 16 bytes");
+FF_STATIC_ASSERT(offsetof(ff_parameter_update_t, parameter_id) == 0,
+                 "ff_parameter_update_t parameter_id offset must be 0 bytes");
+FF_STATIC_ASSERT(offsetof(ff_parameter_update_t, normalized_value) == 4,
+                 "ff_parameter_update_t normalized_value offset must be 4 bytes");
+FF_STATIC_ASSERT(offsetof(ff_parameter_update_t, ramp_samples) == 8,
+                 "ff_parameter_update_t ramp_samples offset must be 8 bytes");
+FF_STATIC_ASSERT(offsetof(ff_parameter_update_t, reserved) == 12,
+                 "ff_parameter_update_t reserved offset must be 12 bytes");
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif
+
+#undef FF_STATIC_ASSERT
 
 #endif  // FF_ABI_CONTRACTS_H_

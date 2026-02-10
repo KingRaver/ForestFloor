@@ -81,7 +81,7 @@ impl NoteMap {
     }
 
     pub fn bind_note(&mut self, note: u8, track_index: u8) -> bool {
-        if track_index >= self.track_count {
+        if !is_midi_data_byte(note) || track_index >= self.track_count {
             return false;
         }
 
@@ -90,6 +90,10 @@ impl NoteMap {
     }
 
     pub fn resolve_track(&self, note: u8) -> Option<u8> {
+        if !is_midi_data_byte(note) {
+            return None;
+        }
+
         self.note_to_track[note as usize]
     }
 }
@@ -162,6 +166,10 @@ pub fn parse_midi_message(bytes: &[u8]) -> Option<MidiMessage> {
     let status = bytes[0];
     let data1 = bytes[1];
     let data2 = bytes[2];
+    if !is_midi_data_byte(data1) || !is_midi_data_byte(data2) {
+        return None;
+    }
+
     let message_type = status & 0xF0;
     let channel = status & 0x0F;
 
@@ -188,6 +196,10 @@ pub fn parse_midi_message(bytes: &[u8]) -> Option<MidiMessage> {
         }),
         _ => None,
     }
+}
+
+fn is_midi_data_byte(value: u8) -> bool {
+    value <= 0x7F
 }
 
 pub fn note_on_to_pad_trigger(note_map: &NoteMap, note: u8, velocity: u8) -> Option<PadTrigger> {
@@ -233,6 +245,13 @@ mod tests {
     }
 
     #[test]
+    fn note_map_rejects_out_of_range_notes() {
+        let mut note_map = NoteMap::new(8);
+        assert!(!note_map.bind_note(200, 0));
+        assert_eq!(note_map.resolve_track(200), None);
+    }
+
+    #[test]
     fn parse_note_on_and_control_change_messages() {
         assert_eq!(
             parse_midi_message(&[0x90, 36, 127]),
@@ -250,6 +269,12 @@ mod tests {
                 value: 99,
             })
         );
+    }
+
+    #[test]
+    fn parse_rejects_invalid_data_bytes() {
+        assert_eq!(parse_midi_message(&[0x90, 200, 127]), None);
+        assert_eq!(parse_midi_message(&[0xB0, 74, 200]), None);
     }
 
     #[test]

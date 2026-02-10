@@ -261,6 +261,12 @@ fn deserialize_kit_body(lines: &[String]) -> Result<Kit, String> {
             }
 
             let track_index = parse_u8(fields[0], "track_index")?;
+            if usize::from(track_index) >= TRACK_COUNT {
+                return Err(format!(
+                    "track assignment out of range: {track_index} (max {})",
+                    TRACK_COUNT - 1
+                ));
+            }
             let sample_id = decode_text(fields[1])?;
             if !kit.add_assignment(TrackAssignment {
                 track_index,
@@ -278,12 +284,23 @@ fn deserialize_kit_body(lines: &[String]) -> Result<Kit, String> {
             }
 
             let track_index = parse_u8(fields[0], "control.track_index")?;
+            if usize::from(track_index) >= TRACK_COUNT {
+                return Err(format!(
+                    "control track out of range: {track_index} (max {})",
+                    TRACK_COUNT - 1
+                ));
+            }
             let choke_group_value = fields[6]
                 .parse::<i32>()
                 .map_err(|_| format!("invalid choke group: {}", fields[6]))?;
             let choke_group = if choke_group_value < 0 {
                 None
             } else {
+                if choke_group_value > 15 {
+                    return Err(format!(
+                        "choke group out of semantic range: {choke_group_value} (max 15)"
+                    ));
+                }
                 Some(
                     u8::try_from(choke_group_value)
                         .map_err(|_| format!("choke group out of range: {choke_group_value}"))?,
@@ -358,6 +375,11 @@ fn deserialize_pattern_body(lines: &[String]) -> Result<Pattern, String> {
                 _ => return Err(format!("invalid step active value: {}", fields[2])),
             };
             let velocity = parse_u8(fields[3], "step.velocity")?;
+            if velocity > 127 {
+                return Err(format!(
+                    "step velocity out of semantic range: {velocity} (max 127)"
+                ));
+            }
             if !pattern.set_step(track_index, step_index, PatternStep { active, velocity }) {
                 return Err(format!("step index out of range: {line}"));
             }
@@ -542,6 +564,18 @@ mod tests {
         TrackAssignment, TrackControls,
     };
 
+    fn fuzz_text(seed: u64, len: usize) -> String {
+        let mut state = seed;
+        let mut bytes = Vec::with_capacity(len);
+        for _ in 0..len {
+            // Deterministic LCG for lightweight fuzz-style coverage.
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+            bytes.push((state >> 32) as u8);
+        }
+
+        String::from_utf8_lossy(&bytes).into_owned()
+    }
+
     #[test]
     fn duplicate_track_assignment_is_rejected() {
         let mut kit = Kit::default();
@@ -652,5 +686,47 @@ mod tests {
 
         assert_eq!(project, decoded);
         assert_eq!(encoded_1, encoded_2);
+    }
+
+    #[test]
+    fn kit_loader_rejects_out_of_range_control_track() {
+        let text = "FF_KIT_V1\nname=\ncontrol|8|1.000000|0.000000|1.000000|1.000000|0.000000|-1";
+        let error = load_kit_from_text(text).expect_err("loader should reject control track 8");
+        assert!(error.contains("control track out of range"));
+    }
+
+    #[test]
+    fn kit_loader_rejects_out_of_range_choke_group() {
+        let text = "FF_KIT_V1\nname=\ncontrol|0|1.000000|0.000000|1.000000|1.000000|0.000000|16";
+        let error = load_kit_from_text(text).expect_err("loader should reject choke group 16");
+        assert!(error.contains("choke group out of semantic range"));
+    }
+
+    #[test]
+    fn pattern_loader_rejects_step_velocity_out_of_semantic_range() {
+        let text = "FF_PATTERN_V1\nname=\nswing=0.000000\nstep|0|0|1|200";
+        let error = load_pattern_from_text(text).expect_err("loader should reject velocity 200");
+        assert!(error.contains("step velocity out of semantic range"));
+    }
+
+    #[test]
+    fn project_loader_rejects_out_of_range_track_assignment() {
+        let text = "FF_PROJECT_V1\nname=\nactive_kit=0\nactive_pattern=0\nBEGIN_KIT\nname=\ntrack|8|6B69636B\nEND_KIT\nBEGIN_PATTERN\nname=\nswing=0.000000\nEND_PATTERN";
+        let error = load_project_from_text(text).expect_err("loader should reject track assignment 8");
+        assert!(error.contains("track assignment out of range"));
+    }
+
+    #[test]
+    fn parser_fuzz_inputs_do_not_panic() {
+        for seed in 0..256u64 {
+            let len = 1 + ((seed as usize * 31) % 256);
+            let candidate = fuzz_text(seed.wrapping_mul(97) + 13, len);
+            let parse_result = std::panic::catch_unwind(|| {
+                let _ = load_kit_from_text(&candidate);
+                let _ = load_pattern_from_text(&candidate);
+                let _ = load_project_from_text(&candidate);
+            });
+            assert!(parse_result.is_ok(), "parser panicked at seed {seed}");
+        }
     }
 }

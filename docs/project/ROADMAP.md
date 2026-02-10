@@ -22,7 +22,7 @@ Definition of done:
 - [-] MIDI note input for pad triggering (note mapping and note-on trigger path implemented).
 
 Definition of done:
-- [-] Stable playback at target latency without XRuns in baseline profile (requires backend integration + stress profiling).
+- [-] Stable playback at target latency without XRuns in baseline profile (stress/golden regression harness implemented; real backend integration + device-level XRun profiling pending).
 
 ## Phase 2 - Instrument Control Depth
 - [x] Per-track controls: gain, pan, filter, envelope, pitch (implemented in `engine-cpp` + `presets-rs` models).

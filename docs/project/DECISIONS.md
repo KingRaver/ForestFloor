@@ -176,3 +176,44 @@ Template:
 - Consequences
   - Phase 3 definition-of-done is testable in one module.
   - Future isolated execution backends can reuse existing routing/automation and lifecycle surfaces.
+
+## ADR-0010
+- Date: 2026-02-10
+- Status: Accepted
+- Context
+  - External plugin binaries are untrusted, but dynamic loading (`dlopen`/`LoadLibrary`) may execute plugin-controlled code before metadata validation completes.
+  - Validation results alone cannot represent a pre-execution safety boundary.
+- Decision
+  - Add an explicit trust gate in `plugin-host` before dynamic load:
+    - host must register trusted plugin root directories via `addTrustedPluginRoot(...)`
+    - `loadPluginBinary(...)` rejects plugin paths outside trusted roots before opening the library
+  - Clarify docs that validation is admission policy after trust gating, not a sandbox boundary.
+- Alternatives considered
+  - Keep metadata validation only and treat it as sufficient pre-load safety.
+  - Always load any path and rely solely on post-load validation/isolation warnings.
+- Consequences
+  - Plugin loading now requires explicit trust configuration by host/application code.
+  - Risk of accidental loading from arbitrary paths is reduced, but runtime process isolation remains a follow-up security layer.
+
+## ADR-0011
+- Date: 2026-02-10
+- Status: Accepted
+- Context
+  - Persistence loaders accepted some semantically invalid values (for example out-of-range track indices/choke groups/step velocities) and only rejected or clamped later in recall paths.
+  - Test strategy documented fuzz/stress/golden coverage but automated workflow did not run dedicated non-unit regression checks.
+- Decision
+  - Harden persistence parsing in `presets-rs` to fail closed at load boundary for:
+    - track assignment and control track index bounds
+    - choke group semantic range (`0..15`)
+    - step velocity semantic range (`0..127`)
+  - Add deterministic parser fuzz-safety tests for kit/pattern/project loaders.
+  - Add C++ non-unit engine regression tests (`ff_engine_nonunit_tests`) covering:
+    - stress render finite-output/runtime-bounded proxy checks
+    - deterministic golden render reference comparison
+  - Add `dev-check --with-non-unit` and schedule CI non-unit regression workflow execution.
+- Alternatives considered
+  - Keep late-stage clamping/rejection in control/engine only.
+  - Rely on ad-hoc manual stress/golden checks with no CI schedule.
+- Consequences
+  - Invalid persisted state is rejected earlier and more deterministically.
+  - Non-unit regressions are monitored on a scheduled CI cadence without slowing default PR checks.

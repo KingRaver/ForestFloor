@@ -1,8 +1,10 @@
 #include "ff/plugin_host/host.hpp"
 
 #include <algorithm>
+#include <filesystem>
 #include <optional>
 #include <string>
+#include <system_error>
 #include <utility>
 
 #if defined(_WIN32)
@@ -12,6 +14,8 @@
 #endif
 
 namespace {
+
+namespace fs = std::filesystem;
 
 class DynamicLibrary final {
  public:
@@ -81,6 +85,45 @@ class DynamicLibrary final {
 };
 
 bool toBool(std::uint8_t value) noexcept { return value != 0; }
+
+std::optional<fs::path> canonicalPath(const std::string& value) noexcept {
+  if (value.empty()) {
+    return std::nullopt;
+  }
+
+  std::error_code error;
+  const fs::path canonical = fs::weakly_canonical(fs::path(value), error);
+  if (error) {
+    return std::nullopt;
+  }
+
+  return canonical.lexically_normal();
+}
+
+bool pathHasPrefix(const fs::path& path, const fs::path& prefix) noexcept {
+  auto path_it = path.begin();
+  auto prefix_it = prefix.begin();
+  while (prefix_it != prefix.end()) {
+    if (path_it == path.end() || *path_it != *prefix_it) {
+      return false;
+    }
+    ++path_it;
+    ++prefix_it;
+  }
+
+  return true;
+}
+
+bool pathIsTrusted(const fs::path& plugin_path,
+                   const std::vector<std::string>& trusted_roots) noexcept {
+  for (const auto& trusted_root : trusted_roots) {
+    if (pathHasPrefix(plugin_path, fs::path(trusted_root))) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 bool lifecycleFnsComplete(const ff::plugin_host::PluginLifecycleFns& lifecycle_fns) noexcept {
   return lifecycle_fns.create != nullptr && lifecycle_fns.prepare != nullptr &&
@@ -245,6 +288,34 @@ ValidationReport Host::validateBinary(const PluginDescriptor& descriptor,
   return report;
 }
 
+bool Host::addTrustedPluginRoot(const std::string& root_path) {
+  const auto canonical_root = canonicalPath(root_path);
+  if (!canonical_root.has_value()) {
+    return false;
+  }
+
+  std::error_code error;
+  if (!fs::is_directory(canonical_root.value(), error) || error) {
+    return false;
+  }
+
+  const std::string normalized = canonical_root->string();
+  const auto existing = std::find(trusted_plugin_roots_.begin(), trusted_plugin_roots_.end(),
+                                  normalized);
+  if (existing != trusted_plugin_roots_.end()) {
+    return true;
+  }
+
+  trusted_plugin_roots_.push_back(normalized);
+  return true;
+}
+
+void Host::clearTrustedPluginRoots() noexcept { trusted_plugin_roots_.clear(); }
+
+std::size_t Host::trustedPluginRootCount() const noexcept {
+  return trusted_plugin_roots_.size();
+}
+
 LoadResult Host::loadPluginBinary(const std::string& binary_path) {
   LoadResult result{};
   if (binary_path.empty()) {
@@ -253,9 +324,35 @@ LoadResult Host::loadPluginBinary(const std::string& binary_path) {
     return result;
   }
 
+  const auto canonical_binary = canonicalPath(binary_path);
+  if (!canonical_binary.has_value()) {
+    result.status = LoadStatus::kLoadError;
+    result.message = "invalid plugin path";
+    return result;
+  }
+
+  std::error_code file_error;
+  if (!fs::is_regular_file(canonical_binary.value(), file_error) || file_error) {
+    result.status = LoadStatus::kLoadError;
+    result.message = "plugin binary path is not a readable file";
+    return result;
+  }
+
+  if (!pathIsTrusted(canonical_binary.value(), trusted_plugin_roots_)) {
+    result.status = LoadStatus::kRejected;
+    result.validation.accepted = false;
+    result.validation.issues.push_back(ValidationIssue{
+        .severity = ValidationSeverity::kError,
+        .code = "trust.path.untrusted",
+        .message = "plugin binary path is outside configured trusted plugin roots",
+    });
+    result.message = "plugin rejected by trust gate";
+    return result;
+  }
+
   DynamicLibrary library;
   std::string load_error;
-  if (!library.open(binary_path, &load_error)) {
+  if (!library.open(canonical_binary->string(), &load_error)) {
     result.status = LoadStatus::kLoadError;
     result.message = "failed to open plugin binary: " + load_error;
     return result;
@@ -338,7 +435,7 @@ LoadResult Host::loadPluginBinary(const std::string& binary_path) {
       .instance = nullptr,
       .active = false,
       .requires_isolation = result.validation.requires_isolation,
-      .binary_path = binary_path,
+      .binary_path = canonical_binary->string(),
       .isolation_pending = result.validation.requires_isolation,
       .isolation_running = false,
       .library_handle = nullptr,
@@ -439,6 +536,10 @@ bool Host::activatePlugin(const std::string& plugin_id, double sample_rate_hz,
   }
 
   plugin->instance = plugin->lifecycle_fns.create(nullptr);
+  if (plugin->instance == nullptr) {
+    return false;
+  }
+
   if (!plugin->lifecycle_fns.prepare(plugin->instance, sample_rate_hz, max_block_size,
                                      channel_config)) {
     if (plugin->lifecycle_fns.destroy != nullptr) {

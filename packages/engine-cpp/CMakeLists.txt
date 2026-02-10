@@ -15,3 +15,14 @@ target_link_libraries(ff_engine_tests PRIVATE ff_engine)
 target_compile_definitions(ff_engine_tests PRIVATE FF_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
 
 add_test(NAME ff_engine_tests COMMAND ff_engine_tests)
+
+add_executable(ff_engine_nonunit_tests
+  tests/engine_nonunit_tests.cpp
+)
+
+target_compile_features(ff_engine_nonunit_tests PRIVATE cxx_std_20)
+target_link_libraries(ff_engine_nonunit_tests PRIVATE ff_engine)
+add_test(NAME ff_engine_nonunit_tests COMMAND ff_engine_nonunit_tests)
+set_tests_properties(ff_engine_nonunit_tests PROPERTIES
+  LABELS "nonunit;stress;golden"
+)

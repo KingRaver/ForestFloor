@@ -9,6 +9,7 @@ Options:
   --tools-only  Check toolchain and architecture only.
   --skip-cpp    Skip C++ configure/build/test checks.
   --skip-rust   Skip Rust workspace tests.
+  --with-non-unit  Include non-unit regression checks (stress/golden).
   --clean       Remove local build outputs before running checks.
   -h, --help    Show this help message.
 USAGE
@@ -32,6 +33,7 @@ RUN_CPP=1
 RUN_RUST=1
 TOOLS_ONLY=0
 CLEAN=0
+RUN_NON_UNIT=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -46,6 +48,9 @@ while [[ $# -gt 0 ]]; do
       ;;
     --clean)
       CLEAN=1
+      ;;
+    --with-non-unit)
+      RUN_NON_UNIT=1
       ;;
     -h|--help)
       usage
@@ -140,8 +145,13 @@ if [[ "$RUN_CPP" -eq 1 ]]; then
     cmake --build build
   fi
 
-  log "Running C++ tests"
-  ctest --test-dir build --output-on-failure
+  log "Running C++ unit/integration tests"
+  ctest --test-dir build --output-on-failure -LE nonunit
+
+  if [[ "$RUN_NON_UNIT" -eq 1 ]]; then
+    log "Running C++ non-unit regression tests (stress/golden)"
+    ctest --test-dir build --output-on-failure -L nonunit
+  fi
 fi
 
 if [[ "$RUN_RUST" -eq 1 ]]; then

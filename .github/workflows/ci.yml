@@ -6,6 +6,9 @@ on:
       - main
       - codex/**
   pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 9 * * *"
 
 jobs:
   build-test:
@@ -32,3 +35,25 @@ jobs:
       - name: Dev Check
         shell: bash
         run: ./tools/scripts/dev-check.sh --clean
+
+  non-unit-regression:
+    name: Non-Unit Regression (Scheduled)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+
+      - name: Setup Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v4
+
+      - name: Dev Check (Non-Unit)
+        shell: bash
+        run: ./tools/scripts/dev-check.sh --clean --with-non-unit

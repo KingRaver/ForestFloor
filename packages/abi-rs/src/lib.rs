@@ -92,18 +92,57 @@ pub struct FfParameterUpdate {
 #[cfg(test)]
 mod tests {
     use super::{
-        ff_track_parameter_id, FfEvent, FfParameterUpdate, FF_PARAM_SLOT_CHOKE_GROUP,
-        FF_PARAM_SLOT_GAIN,
+        ff_track_parameter_id, FfEvent, FfEventPayload, FfNoteEvent, FfParameterUpdate,
+        FfTriggerEvent, FF_PARAM_SLOT_CHOKE_GROUP, FF_PARAM_SLOT_GAIN,
     };
+    use std::mem::{align_of, offset_of, size_of};
 
     #[test]
-    fn parameter_update_layout_is_16_bytes() {
-        assert_eq!(std::mem::size_of::<FfParameterUpdate>(), 16);
+    fn note_event_layout_is_stable() {
+        assert_eq!(size_of::<FfNoteEvent>(), 8);
+        assert_eq!(align_of::<FfNoteEvent>(), 4);
+        assert_eq!(offset_of!(FfNoteEvent, track_index), 0);
+        assert_eq!(offset_of!(FfNoteEvent, note), 1);
+        assert_eq!(offset_of!(FfNoteEvent, reserved), 2);
+        assert_eq!(offset_of!(FfNoteEvent, velocity), 4);
     }
 
     #[test]
-    fn event_layout_is_nonzero() {
-        assert!(std::mem::size_of::<FfEvent>() >= 24);
+    fn trigger_event_layout_is_stable() {
+        assert_eq!(size_of::<FfTriggerEvent>(), 8);
+        assert_eq!(align_of::<FfTriggerEvent>(), 4);
+        assert_eq!(offset_of!(FfTriggerEvent, track_index), 0);
+        assert_eq!(offset_of!(FfTriggerEvent, step_index), 1);
+        assert_eq!(offset_of!(FfTriggerEvent, reserved), 2);
+        assert_eq!(offset_of!(FfTriggerEvent, velocity), 4);
+    }
+
+    #[test]
+    fn event_payload_layout_is_stable() {
+        assert_eq!(size_of::<FfEventPayload>(), 8);
+        assert_eq!(align_of::<FfEventPayload>(), 4);
+    }
+
+    #[test]
+    fn event_layout_is_stable() {
+        assert_eq!(size_of::<FfEvent>(), 32);
+        assert_eq!(align_of::<FfEvent>(), 8);
+        assert_eq!(offset_of!(FfEvent, timeline_sample), 0);
+        assert_eq!(offset_of!(FfEvent, block_offset), 8);
+        assert_eq!(offset_of!(FfEvent, source_id), 12);
+        assert_eq!(offset_of!(FfEvent, reserved), 14);
+        assert_eq!(offset_of!(FfEvent, event_type), 16);
+        assert_eq!(offset_of!(FfEvent, payload), 20);
+    }
+
+    #[test]
+    fn parameter_update_layout_is_stable() {
+        assert_eq!(size_of::<FfParameterUpdate>(), 16);
+        assert_eq!(align_of::<FfParameterUpdate>(), 4);
+        assert_eq!(offset_of!(FfParameterUpdate, parameter_id), 0);
+        assert_eq!(offset_of!(FfParameterUpdate, normalized_value), 4);
+        assert_eq!(offset_of!(FfParameterUpdate, ramp_samples), 8);
+        assert_eq!(offset_of!(FfParameterUpdate, reserved), 12);
     }
 
     #[test]
