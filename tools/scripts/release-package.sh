@@ -142,7 +142,7 @@ if [[ "$SKIP_BUILD" -eq 0 ]]; then
     -DCMAKE_BUILD_TYPE=Release \
     -DFF_BUILD_DESKTOP=ON \
     -DFF_RELEASE_VERSION="$VERSION" \
-    "${CMAKE_EXTRA_ARGS[@]}"
+    ${CMAKE_EXTRA_ARGS[@]+"${CMAKE_EXTRA_ARGS[@]}"}
 
   log "Building release target: forest_floor_desktop"
   cmake --build "$BUILD_DIR" --target forest_floor_desktop
