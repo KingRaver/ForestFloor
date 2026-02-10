@@ -1,11 +1,20 @@
 #include "ff/plugin_host/host.hpp"
 
-#include <cassert>
+#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <string>
 
 namespace {
+
+#define FF_TEST_EXPECT(condition)                                                  \
+  do {                                                                             \
+    if (!(condition)) {                                                            \
+      std::fprintf(stderr, "EXPECT FAILED: %s:%d: %s\n", __FILE__, __LINE__, #condition); \
+      std::fflush(stderr);                                                         \
+      std::exit(1);                                                                \
+    }                                                                              \
+  } while (false)
 
 struct InternalPluginState final {
   std::uint32_t processed_frames = 0;
@@ -32,17 +41,17 @@ PrepareFailureState g_prepare_failure_state{};
 
 std::string requiredEnv(const char* key) {
   const char* value = std::getenv(key);
-  assert(value != nullptr);
+  FF_TEST_EXPECT(value != nullptr);
   return value;
 }
 
 void trustPluginBinaryRoot(ff::plugin_host::Host* host,
                            const std::string& binary_path) {
-  assert(host != nullptr);
+  FF_TEST_EXPECT(host != nullptr);
   const std::filesystem::path path(binary_path);
   const auto root = path.parent_path();
-  assert(!root.empty());
-  assert(host->addTrustedPluginRoot(root.string()));
+  FF_TEST_EXPECT(!root.empty());
+  FF_TEST_EXPECT(host->addTrustedPluginRoot(root.string()));
 }
 
 ff::plugin_host::PluginBinaryInfo validBinary() {
@@ -128,16 +137,16 @@ void rejectsIncompatibleSdkMajor() {
   binary.sdk_version_major += 1;
 
   const auto report = host.validateBinary({"ff.external.fx", "External FX"}, binary);
-  assert(!report.accepted);
-  assert(!report.issues.empty());
+  FF_TEST_EXPECT(!report.accepted);
+  FF_TEST_EXPECT(!report.issues.empty());
 }
 
 void rejectsMissingEntrypoints() {
   ff::plugin_host::Host host;
   auto binary = validBinary();
   binary.entrypoints.has_process = false;
-  assert(!host.registerPlugin({"ff.external.fx", "External FX"}, binary));
-  assert(host.pluginCount() == 0);
+  FF_TEST_EXPECT(!host.registerPlugin({"ff.external.fx", "External FX"}, binary));
+  FF_TEST_EXPECT(host.pluginCount() == 0);
 }
 
 void queuesIsolatedPluginAndStartsSession() {
@@ -145,18 +154,18 @@ void queuesIsolatedPluginAndStartsSession() {
   const auto path = requiredEnv("FF_TEST_PLUGIN_ISOLATED");
   trustPluginBinaryRoot(&host, path);
   const auto result = host.loadPluginBinary(path);
-  assert(result.status == ff::plugin_host::LoadStatus::kQueuedForIsolation);
-  assert(result.validation.accepted);
-  assert(result.validation.requires_isolation);
-  assert(result.plugin_id == "ff.test.isolated");
-  assert(host.pluginCount() == 1);
-  assert(host.isolatedPluginCount() == 1);
-  assert(host.pendingIsolationCount() == 1);
-  assert(host.runningIsolationCount() == 0);
-  assert(host.startIsolationSession("ff.test.isolated"));
-  assert(host.pendingIsolationCount() == 0);
-  assert(host.runningIsolationCount() == 1);
-  assert(!host.startIsolationSession("ff.test.isolated"));
+  FF_TEST_EXPECT(result.status == ff::plugin_host::LoadStatus::kQueuedForIsolation);
+  FF_TEST_EXPECT(result.validation.accepted);
+  FF_TEST_EXPECT(result.validation.requires_isolation);
+  FF_TEST_EXPECT(result.plugin_id == "ff.test.isolated");
+  FF_TEST_EXPECT(host.pluginCount() == 1);
+  FF_TEST_EXPECT(host.isolatedPluginCount() == 1);
+  FF_TEST_EXPECT(host.pendingIsolationCount() == 1);
+  FF_TEST_EXPECT(host.runningIsolationCount() == 0);
+  FF_TEST_EXPECT(host.startIsolationSession("ff.test.isolated"));
+  FF_TEST_EXPECT(host.pendingIsolationCount() == 0);
+  FF_TEST_EXPECT(host.runningIsolationCount() == 1);
+  FF_TEST_EXPECT(!host.startIsolationSession("ff.test.isolated"));
 }
 
 void rejectsDynamicPluginWithMissingProcessSymbol() {
@@ -164,9 +173,9 @@ void rejectsDynamicPluginWithMissingProcessSymbol() {
   const auto path = requiredEnv("FF_TEST_PLUGIN_INVALID");
   trustPluginBinaryRoot(&host, path);
   const auto result = host.loadPluginBinary(path);
-  assert(result.status == ff::plugin_host::LoadStatus::kRejected);
-  assert(!result.validation.accepted);
-  assert(host.pluginCount() == 0);
+  FF_TEST_EXPECT(result.status == ff::plugin_host::LoadStatus::kRejected);
+  FF_TEST_EXPECT(!result.validation.accepted);
+  FF_TEST_EXPECT(host.pluginCount() == 0);
 }
 
 void rejectsActivationWhenCreateReturnsNull() {
@@ -174,7 +183,7 @@ void rejectsActivationWhenCreateReturnsNull() {
   g_null_create_state = {};
 
   auto binary = validBinary();
-  assert(host.registerInternalPlugin(
+  FF_TEST_EXPECT(host.registerInternalPlugin(
       {"ff.internal.null-create", "Null Create"}, binary,
       ff::plugin_host::PluginLifecycleFns{
           .create = nullCreate,
@@ -184,20 +193,20 @@ void rejectsActivationWhenCreateReturnsNull() {
           .destroy = nullCreateDestroy,
       }));
 
-  assert(!host.activatePlugin("ff.internal.null-create", 48'000.0, 256, 0));
-  assert(g_null_create_state.create_calls == 1);
-  assert(g_null_create_state.prepare_calls == 0);
-  assert(g_null_create_state.destroy_calls == 0);
+  FF_TEST_EXPECT(!host.activatePlugin("ff.internal.null-create", 48'000.0, 256, 0));
+  FF_TEST_EXPECT(g_null_create_state.create_calls == 1);
+  FF_TEST_EXPECT(g_null_create_state.prepare_calls == 0);
+  FF_TEST_EXPECT(g_null_create_state.destroy_calls == 0);
 
   const auto counters = host.pluginRuntimeCounters("ff.internal.null-create");
-  assert(counters.prepare_calls == 0);
-  assert(counters.process_calls == 0);
-  assert(counters.reset_calls == 0);
-  assert(counters.deactivate_calls == 0);
+  FF_TEST_EXPECT(counters.prepare_calls == 0);
+  FF_TEST_EXPECT(counters.process_calls == 0);
+  FF_TEST_EXPECT(counters.reset_calls == 0);
+  FF_TEST_EXPECT(counters.deactivate_calls == 0);
 
-  assert(!host.processPlugin("ff.internal.null-create", 64));
-  assert(!host.resetPlugin("ff.internal.null-create"));
-  assert(!host.deactivatePlugin("ff.internal.null-create"));
+  FF_TEST_EXPECT(!host.processPlugin("ff.internal.null-create", 64));
+  FF_TEST_EXPECT(!host.resetPlugin("ff.internal.null-create"));
+  FF_TEST_EXPECT(!host.deactivatePlugin("ff.internal.null-create"));
 }
 
 void destroysInstanceWhenPrepareFails() {
@@ -205,7 +214,7 @@ void destroysInstanceWhenPrepareFails() {
   g_prepare_failure_state = {};
 
   auto binary = validBinary();
-  assert(host.registerInternalPlugin(
+  FF_TEST_EXPECT(host.registerInternalPlugin(
       {"ff.internal.prepare-failure", "Prepare Failure"}, binary,
       ff::plugin_host::PluginLifecycleFns{
           .create = prepareFailureCreate,
@@ -215,31 +224,31 @@ void destroysInstanceWhenPrepareFails() {
           .destroy = prepareFailureDestroy,
       }));
 
-  assert(!host.activatePlugin("ff.internal.prepare-failure", 48'000.0, 256, 0));
-  assert(g_prepare_failure_state.create_calls == 1);
-  assert(g_prepare_failure_state.prepare_calls == 1);
-  assert(g_prepare_failure_state.destroy_calls == 1);
+  FF_TEST_EXPECT(!host.activatePlugin("ff.internal.prepare-failure", 48'000.0, 256, 0));
+  FF_TEST_EXPECT(g_prepare_failure_state.create_calls == 1);
+  FF_TEST_EXPECT(g_prepare_failure_state.prepare_calls == 1);
+  FF_TEST_EXPECT(g_prepare_failure_state.destroy_calls == 1);
 
   const auto counters = host.pluginRuntimeCounters("ff.internal.prepare-failure");
-  assert(counters.prepare_calls == 0);
-  assert(counters.process_calls == 0);
-  assert(counters.reset_calls == 0);
-  assert(counters.deactivate_calls == 0);
+  FF_TEST_EXPECT(counters.prepare_calls == 0);
+  FF_TEST_EXPECT(counters.process_calls == 0);
+  FF_TEST_EXPECT(counters.reset_calls == 0);
+  FF_TEST_EXPECT(counters.deactivate_calls == 0);
 
-  assert(!host.processPlugin("ff.internal.prepare-failure", 64));
-  assert(!host.resetPlugin("ff.internal.prepare-failure"));
-  assert(!host.deactivatePlugin("ff.internal.prepare-failure"));
+  FF_TEST_EXPECT(!host.processPlugin("ff.internal.prepare-failure", 64));
+  FF_TEST_EXPECT(!host.resetPlugin("ff.internal.prepare-failure"));
+  FF_TEST_EXPECT(!host.deactivatePlugin("ff.internal.prepare-failure"));
 }
 
 void rejectsDynamicPluginOutsideTrustedRoots() {
   ff::plugin_host::Host host;
   const auto path = requiredEnv("FF_TEST_PLUGIN_VALID");
   const auto result = host.loadPluginBinary(path);
-  assert(result.status == ff::plugin_host::LoadStatus::kRejected);
-  assert(!result.validation.accepted);
-  assert(result.validation.issues.size() == 1);
-  assert(result.validation.issues[0].code == "trust.path.untrusted");
-  assert(host.pluginCount() == 0);
+  FF_TEST_EXPECT(result.status == ff::plugin_host::LoadStatus::kRejected);
+  FF_TEST_EXPECT(!result.validation.accepted);
+  FF_TEST_EXPECT(result.validation.issues.size() == 1);
+  FF_TEST_EXPECT(result.validation.issues[0].code == "trust.path.untrusted");
+  FF_TEST_EXPECT(host.pluginCount() == 0);
 }
 
 void loadsInternalAndExternalPluginsViaSdkAndRunsLifecycle() {
@@ -255,44 +264,44 @@ void loadsInternalAndExternalPluginsViaSdkAndRunsLifecycle() {
           .reset = internalReset,
           .destroy = internalDestroy,
       });
-  assert(internal_registered);
+  FF_TEST_EXPECT(internal_registered);
 
   const auto external_path = requiredEnv("FF_TEST_PLUGIN_VALID");
   trustPluginBinaryRoot(&host, external_path);
   const auto external_result = host.loadPluginBinary(external_path);
-  assert(external_result.status == ff::plugin_host::LoadStatus::kLoadedInProcess);
-  assert(external_result.validation.accepted);
-  assert(external_result.plugin_id == "ff.test.valid");
-  assert(host.pluginCount() == 2);
+  FF_TEST_EXPECT(external_result.status == ff::plugin_host::LoadStatus::kLoadedInProcess);
+  FF_TEST_EXPECT(external_result.validation.accepted);
+  FF_TEST_EXPECT(external_result.plugin_id == "ff.test.valid");
+  FF_TEST_EXPECT(host.pluginCount() == 2);
 
-  assert(host.activatePlugin("ff.internal.clock", 48'000.0, 256, 0));
-  assert(host.activatePlugin("ff.test.valid", 48'000.0, 256, 0));
+  FF_TEST_EXPECT(host.activatePlugin("ff.internal.clock", 48'000.0, 256, 0));
+  FF_TEST_EXPECT(host.activatePlugin("ff.test.valid", 48'000.0, 256, 0));
 
-  assert(host.processPlugin("ff.internal.clock", 128));
-  assert(host.processPlugin("ff.internal.clock", 128));
-  assert(host.processPlugin("ff.test.valid", 256));
-  assert(host.resetPlugin("ff.internal.clock"));
-  assert(host.resetPlugin("ff.test.valid"));
-  assert(host.deactivatePlugin("ff.internal.clock"));
-  assert(host.deactivatePlugin("ff.test.valid"));
+  FF_TEST_EXPECT(host.processPlugin("ff.internal.clock", 128));
+  FF_TEST_EXPECT(host.processPlugin("ff.internal.clock", 128));
+  FF_TEST_EXPECT(host.processPlugin("ff.test.valid", 256));
+  FF_TEST_EXPECT(host.resetPlugin("ff.internal.clock"));
+  FF_TEST_EXPECT(host.resetPlugin("ff.test.valid"));
+  FF_TEST_EXPECT(host.deactivatePlugin("ff.internal.clock"));
+  FF_TEST_EXPECT(host.deactivatePlugin("ff.test.valid"));
 
   const auto internal_counters = host.pluginRuntimeCounters("ff.internal.clock");
-  assert(internal_counters.prepare_calls == 1);
-  assert(internal_counters.process_calls == 2);
-  assert(internal_counters.reset_calls == 1);
-  assert(internal_counters.deactivate_calls == 1);
+  FF_TEST_EXPECT(internal_counters.prepare_calls == 1);
+  FF_TEST_EXPECT(internal_counters.process_calls == 2);
+  FF_TEST_EXPECT(internal_counters.reset_calls == 1);
+  FF_TEST_EXPECT(internal_counters.deactivate_calls == 1);
 
   const auto external_counters = host.pluginRuntimeCounters("ff.test.valid");
-  assert(external_counters.prepare_calls == 1);
-  assert(external_counters.process_calls == 1);
-  assert(external_counters.reset_calls == 1);
-  assert(external_counters.deactivate_calls == 1);
+  FF_TEST_EXPECT(external_counters.prepare_calls == 1);
+  FF_TEST_EXPECT(external_counters.process_calls == 1);
+  FF_TEST_EXPECT(external_counters.reset_calls == 1);
+  FF_TEST_EXPECT(external_counters.deactivate_calls == 1);
 }
 
 void managesRoutesAndAutomationLanes() {
   ff::plugin_host::Host host;
   auto binary = validBinary();
-  assert(host.registerInternalPlugin(
+  FF_TEST_EXPECT(host.registerInternalPlugin(
       {"ff.internal.clock", "Internal Clock"}, binary,
       ff::plugin_host::PluginLifecycleFns{
           .create = internalCreate,
@@ -303,49 +312,49 @@ void managesRoutesAndAutomationLanes() {
       }));
   const auto external_path = requiredEnv("FF_TEST_PLUGIN_VALID");
   trustPluginBinaryRoot(&host, external_path);
-  assert(host.loadPluginBinary(external_path).validation.accepted);
+  FF_TEST_EXPECT(host.loadPluginBinary(external_path).validation.accepted);
 
-  assert(host.setRoute({.source_id = ff::plugin_host::kRouteHostInput,
+  FF_TEST_EXPECT(host.setRoute({.source_id = ff::plugin_host::kRouteHostInput,
                         .destination_id = "ff.internal.clock",
                         .gain = 1.0F}));
-  assert(host.setRoute({.source_id = "ff.internal.clock",
+  FF_TEST_EXPECT(host.setRoute({.source_id = "ff.internal.clock",
                         .destination_id = "ff.test.valid",
                         .gain = 0.75F}));
-  assert(host.setRoute({.source_id = "ff.test.valid",
+  FF_TEST_EXPECT(host.setRoute({.source_id = "ff.test.valid",
                         .destination_id = ff::plugin_host::kRouteMasterOutput,
                         .gain = 0.9F}));
-  assert(host.routeCount() == 3);
-  assert(host.setRoute({.source_id = "ff.internal.clock",
+  FF_TEST_EXPECT(host.routeCount() == 3);
+  FF_TEST_EXPECT(host.setRoute({.source_id = "ff.internal.clock",
                         .destination_id = "ff.test.valid",
                         .gain = 0.5F}));
-  assert(host.routeCount() == 3);
-  assert(host.removeRoute("ff.internal.clock", "ff.test.valid"));
-  assert(host.routeCount() == 2);
-  assert(!host.setRoute({.source_id = "ff.unknown",
+  FF_TEST_EXPECT(host.routeCount() == 3);
+  FF_TEST_EXPECT(host.removeRoute("ff.internal.clock", "ff.test.valid"));
+  FF_TEST_EXPECT(host.routeCount() == 2);
+  FF_TEST_EXPECT(!host.setRoute({.source_id = "ff.unknown",
                          .destination_id = "ff.test.valid",
                          .gain = 1.0F}));
 
   const std::uint32_t parameter_id = 0x5001;
-  assert(host.addAutomationPoint("ff.test.valid", parameter_id, 0, 0.0F));
-  assert(host.addAutomationPoint("ff.test.valid", parameter_id, 48'000, 1.0F));
-  assert(host.addAutomationPoint("ff.test.valid", parameter_id, 24'000, 0.25F));
-  assert(host.automationLaneCount() == 1);
-  assert(!host.addAutomationPoint("ff.unknown", parameter_id, 0, 0.0F));
+  FF_TEST_EXPECT(host.addAutomationPoint("ff.test.valid", parameter_id, 0, 0.0F));
+  FF_TEST_EXPECT(host.addAutomationPoint("ff.test.valid", parameter_id, 48'000, 1.0F));
+  FF_TEST_EXPECT(host.addAutomationPoint("ff.test.valid", parameter_id, 24'000, 0.25F));
+  FF_TEST_EXPECT(host.automationLaneCount() == 1);
+  FF_TEST_EXPECT(!host.addAutomationPoint("ff.unknown", parameter_id, 0, 0.0F));
 
   const auto updates_start = host.automationUpdatesAt(0);
-  assert(updates_start.size() == 1);
-  assert(updates_start[0].plugin_id == "ff.test.valid");
-  assert(updates_start[0].parameter_update.parameter_id == parameter_id);
-  assert(updates_start[0].parameter_update.normalized_value == 0.0F);
+  FF_TEST_EXPECT(updates_start.size() == 1);
+  FF_TEST_EXPECT(updates_start[0].plugin_id == "ff.test.valid");
+  FF_TEST_EXPECT(updates_start[0].parameter_update.parameter_id == parameter_id);
+  FF_TEST_EXPECT(updates_start[0].parameter_update.normalized_value == 0.0F);
 
   const auto updates_mid = host.automationUpdatesAt(12'000);
-  assert(updates_mid.size() == 1);
-  assert(updates_mid[0].parameter_update.normalized_value > 0.12F);
-  assert(updates_mid[0].parameter_update.normalized_value < 0.13F);
+  FF_TEST_EXPECT(updates_mid.size() == 1);
+  FF_TEST_EXPECT(updates_mid[0].parameter_update.normalized_value > 0.12F);
+  FF_TEST_EXPECT(updates_mid[0].parameter_update.normalized_value < 0.13F);
 
   const auto updates_late = host.automationUpdatesAt(72'000);
-  assert(updates_late.size() == 1);
-  assert(updates_late[0].parameter_update.normalized_value == 1.0F);
+  FF_TEST_EXPECT(updates_late.size() == 1);
+  FF_TEST_EXPECT(updates_late[0].parameter_update.normalized_value == 1.0F);
 }
 
 void rejectsDuplicateDynamicPluginId() {
@@ -354,9 +363,9 @@ void rejectsDuplicateDynamicPluginId() {
   trustPluginBinaryRoot(&host, valid_path);
   const auto first = host.loadPluginBinary(valid_path);
   const auto second = host.loadPluginBinary(valid_path);
-  assert(first.status == ff::plugin_host::LoadStatus::kLoadedInProcess);
-  assert(second.status == ff::plugin_host::LoadStatus::kRejected);
-  assert(host.pluginCount() == 1);
+  FF_TEST_EXPECT(first.status == ff::plugin_host::LoadStatus::kLoadedInProcess);
+  FF_TEST_EXPECT(second.status == ff::plugin_host::LoadStatus::kRejected);
+  FF_TEST_EXPECT(host.pluginCount() == 1);
 }
 
 }  // namespace
