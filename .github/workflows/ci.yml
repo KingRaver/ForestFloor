@@ -32,6 +32,10 @@ jobs:
       - name: Setup Ninja
         uses: seanmiddleditch/gha-setup-ninja@v4
 
+      - name: Setup MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Dev Check
         shell: bash
         run: ./tools/scripts/dev-check.sh --clean

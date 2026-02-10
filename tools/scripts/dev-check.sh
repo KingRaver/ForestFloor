@@ -138,6 +138,17 @@ if [[ "$RUN_CPP" -eq 1 ]]; then
       cmake -S . -B build -G Ninja
       cmake --build build
     fi
+  elif [[ "$HOST_OS" == MINGW* || "$HOST_OS" == MSYS* ]]; then
+    CMAKE_EXTRA_ARGS=()
+    if command -v cl >/dev/null 2>&1; then
+      log "Configuring C++ (Windows MSVC)"
+      CMAKE_EXTRA_ARGS+=(-DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl)
+    else
+      log "Configuring C++ (Windows MinGW)"
+    fi
+    cmake -S . -B build -G Ninja "${CMAKE_EXTRA_ARGS[@]}"
+    log "Building C++ (Windows)"
+    cmake --build build
   else
     log "Configuring C++ (generic)"
     cmake -S . -B build -G Ninja

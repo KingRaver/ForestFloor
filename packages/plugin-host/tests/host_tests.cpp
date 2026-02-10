@@ -374,21 +374,37 @@ void rejectsDuplicateDynamicPluginId() {
 
 }  // namespace
 
+void logProgress(const char* label) {
+  std::fprintf(stderr, "[host_tests] %s\n", label);
+  std::fflush(stderr);
+}
+
 int main() {
 #if defined(_WIN32)
   // Suppress Windows error dialogs (missing DLL, crash reporting) that would
   // block indefinitely on headless CI runners.
   SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
 #endif
+  logProgress("start");
   rejectsIncompatibleSdkMajor();
+  logProgress("rejectsIncompatibleSdkMajor OK");
   rejectsMissingEntrypoints();
+  logProgress("rejectsMissingEntrypoints OK");
   rejectsDynamicPluginOutsideTrustedRoots();
+  logProgress("rejectsDynamicPluginOutsideTrustedRoots OK");
   queuesIsolatedPluginAndStartsSession();
+  logProgress("queuesIsolatedPluginAndStartsSession OK");
   rejectsDynamicPluginWithMissingProcessSymbol();
+  logProgress("rejectsDynamicPluginWithMissingProcessSymbol OK");
   rejectsActivationWhenCreateReturnsNull();
+  logProgress("rejectsActivationWhenCreateReturnsNull OK");
   destroysInstanceWhenPrepareFails();
+  logProgress("destroysInstanceWhenPrepareFails OK");
   loadsInternalAndExternalPluginsViaSdkAndRunsLifecycle();
+  logProgress("loadsInternalAndExternalPluginsViaSdkAndRunsLifecycle OK");
   managesRoutesAndAutomationLanes();
+  logProgress("managesRoutesAndAutomationLanes OK");
   rejectsDuplicateDynamicPluginId();
+  logProgress("rejectsDuplicateDynamicPluginId OK");
   return 0;
 }
