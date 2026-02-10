@@ -1,6 +1,7 @@
 #include "ff/plugin_host/host.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -92,7 +93,7 @@ std::optional<fs::path> canonicalPath(const std::string& value) noexcept {
   }
 
   std::error_code error;
-  const fs::path canonical = fs::weakly_canonical(fs::path(value), error);
+  const fs::path canonical = fs::absolute(fs::path(value), error);
   if (error) {
     return std::nullopt;
   }
@@ -100,11 +101,25 @@ std::optional<fs::path> canonicalPath(const std::string& value) noexcept {
   return canonical.lexically_normal();
 }
 
+bool pathComponentEqual(const fs::path& left, const fs::path& right) noexcept {
+#if defined(_WIN32)
+  std::string left_text = left.string();
+  std::string right_text = right.string();
+  std::transform(left_text.begin(), left_text.end(), left_text.begin(),
+                 [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
+  std::transform(right_text.begin(), right_text.end(), right_text.begin(),
+                 [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
+  return left_text == right_text;
+#else
+  return left == right;
+#endif
+}
+
 bool pathHasPrefix(const fs::path& path, const fs::path& prefix) noexcept {
   auto path_it = path.begin();
   auto prefix_it = prefix.begin();
   while (prefix_it != prefix.end()) {
-    if (path_it == path.end() || *path_it != *prefix_it) {
+    if (path_it == path.end() || !pathComponentEqual(*path_it, *prefix_it)) {
       return false;
     }
     ++path_it;
