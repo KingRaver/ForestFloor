@@ -91,6 +91,17 @@ HOST_OS="$(uname -s)"
 HOST_ARCH="$(uname -m)"
 log "Host: $HOST_OS $HOST_ARCH"
 
+# On Windows (MSYS2/Git Bash), MSVC's link.exe must precede Git's /usr/bin/link
+# (POSIX hard-link utility) in PATH, otherwise Rust's linker invocation fails.
+if [[ "$HOST_OS" == MINGW* || "$HOST_OS" == MSYS* ]]; then
+  CL_PATH="$(command -v cl 2>/dev/null || true)"
+  if [[ -n "$CL_PATH" ]]; then
+    MSVC_BIN_DIR="$(dirname "$CL_PATH")"
+    export PATH="$MSVC_BIN_DIR:$PATH"
+    log "MSVC bin: $MSVC_BIN_DIR"
+  fi
+fi
+
 if [[ "$HOST_OS" == "Darwin" && "$HOST_ARCH" == "arm64" ]]; then
   require_cmd file
 
