@@ -10,6 +10,9 @@ Options:
   --output-dir <path>    Output directory for installers/manifests (default: dist)
   --build-dir <path>     CMake build directory (default: build-release)
   --signing-key <path>   PEM private key used for detached signatures
+  --codesign-identity <id>  macOS code signing identity for app bundle
+  --notary-profile <name>   macOS notarytool keychain profile name
+  --skip-notarize        Skip notarization even if --notary-profile is set
   --require-signing      Fail if signing key is not provided
   --skip-checks          Skip ./tools/scripts/dev-check.sh --clean --with-non-unit
   --skip-build           Skip configure/build and package existing build directory
@@ -50,9 +53,12 @@ VERSION=""
 OUTPUT_DIR="dist"
 BUILD_DIR="build-release"
 SIGNING_KEY="${FF_RELEASE_SIGNING_KEY_PATH:-}"
+CODESIGN_IDENTITY="${FF_MACOS_CODESIGN_IDENTITY:-}"
+NOTARY_PROFILE="${FF_MACOS_NOTARY_PROFILE:-}"
 REQUIRE_SIGNING=0
 SKIP_CHECKS=0
 SKIP_BUILD=0
+SKIP_NOTARIZE=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -75,6 +81,20 @@ while [[ $# -gt 0 ]]; do
       [[ $# -ge 2 ]] || die "Missing value for --signing-key"
       SIGNING_KEY="$2"
       shift 2
+      ;;
+    --codesign-identity)
+      [[ $# -ge 2 ]] || die "Missing value for --codesign-identity"
+      CODESIGN_IDENTITY="$2"
+      shift 2
+      ;;
+    --notary-profile)
+      [[ $# -ge 2 ]] || die "Missing value for --notary-profile"
+      NOTARY_PROFILE="$2"
+      shift 2
+      ;;
+    --skip-notarize)
+      SKIP_NOTARIZE=1
+      shift
       ;;
     --require-signing)
       REQUIRE_SIGNING=1
@@ -150,6 +170,17 @@ fi
 
 [[ -f "$BUILD_DIR/CPackConfig.cmake" ]] || die "Missing $BUILD_DIR/CPackConfig.cmake. Build/package configuration did not complete."
 
+if [[ "$(uname -s)" == "Darwin" && -n "$CODESIGN_IDENTITY" ]]; then
+  require_cmd codesign
+
+  APP_BUNDLE="$BUILD_DIR/apps/desktop/Forest Floor.app"
+  [[ -d "$APP_BUNDLE" ]] || die "Expected app bundle not found for codesign: $APP_BUNDLE"
+
+  log "Code signing macOS app bundle with identity: $CODESIGN_IDENTITY"
+  codesign --force --deep --options runtime --timestamp --sign "$CODESIGN_IDENTITY" "$APP_BUNDLE"
+  codesign --verify --deep --strict "$APP_BUNDLE"
+fi
+
 log "Cleaning previous release artifacts for version $VERSION"
 rm -f "$OUTPUT_DIR"/forest-floor-"$VERSION"-* \
       "$OUTPUT_DIR"/forest-floor-"$VERSION"-checksums.sha256 \
@@ -197,6 +228,21 @@ elif [[ "$REQUIRE_SIGNING" -eq 1 ]]; then
 fi
 
 MANIFEST_FILE="$OUTPUT_DIR/forest-floor-${VERSION}-manifest.txt"
+NOTARIZED=0
+if [[ "$(uname -s)" == "Darwin" && -n "$NOTARY_PROFILE" && "$SKIP_NOTARIZE" -eq 0 ]]; then
+  require_cmd xcrun
+  for artifact in "${ARTIFACTS[@]}"; do
+    case "$artifact" in
+      *.dmg)
+        log "Submitting for notarization: $(basename "$artifact")"
+        xcrun notarytool submit "$artifact" --keychain-profile "$NOTARY_PROFILE" --wait
+        xcrun stapler staple "$artifact"
+        NOTARIZED=1
+        ;;
+    esac
+  done
+fi
+
 {
   printf 'version=%s\n' "$VERSION"
   printf 'generated_utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -209,6 +255,18 @@ MANIFEST_FILE="$OUTPUT_DIR/forest-floor-${VERSION}-manifest.txt"
     printf 'public_key=%s\n' "$(basename "$PUBLIC_KEY_PATH")"
   else
     printf 'signed=no\n'
+  fi
+  if [[ -n "$CODESIGN_IDENTITY" ]]; then
+    printf 'codesigned=yes\n'
+    printf 'codesign_identity=%s\n' "$CODESIGN_IDENTITY"
+  else
+    printf 'codesigned=no\n'
+  fi
+  if [[ "$NOTARIZED" -eq 1 ]]; then
+    printf 'notarized=yes\n'
+    printf 'notary_profile=%s\n' "$NOTARY_PROFILE"
+  else
+    printf 'notarized=no\n'
   fi
   printf 'artifact_files=\n'
   for artifact in "${ARTIFACTS[@]}"; do

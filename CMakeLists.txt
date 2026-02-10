@@ -8,9 +8,18 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # We are not using C++20 modules yet; disabling scan avoids clang-scan-deps issues on mixed local toolchains.
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
+if(APPLE)
+  enable_language(OBJCXX)
+endif()
+
 enable_testing()
 
 option(FF_BUILD_DESKTOP "Build the standalone desktop host stub." ON)
+
+set(FF_APP_DISPLAY_NAME "Forest Floor")
+set(FF_APP_BUNDLE_ID "com.forestfloor.desktop")
+set(FF_APP_ICON_ICNS "${CMAKE_SOURCE_DIR}/assets/icons/forest-floor.icns")
+set(FF_APP_ICON_ICO "${CMAKE_SOURCE_DIR}/assets/icons/forest-floor.ico")
 
 add_subdirectory(packages/dsp-cpp)
 add_subdirectory(packages/engine-cpp)
@@ -34,7 +43,10 @@ set(CPACK_PACKAGE_FILE_NAME
 )
 set(CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/README.md")
 set(CPACK_STRIP_FILES ON)
-if(WIN32)
+if(APPLE)
+  set(CPACK_GENERATOR "DragNDrop")
+  set(CPACK_DMG_VOLUME_NAME "${FF_APP_DISPLAY_NAME}")
+elseif(WIN32)
   set(CPACK_GENERATOR "ZIP")
 else()
   set(CPACK_GENERATOR "TGZ")

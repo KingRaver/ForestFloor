@@ -6,7 +6,7 @@ Status key:
 - `[x]` complete
 
 Desktop app delivery checklist:
-- `docs/project/ICON.md`
+- `docs/project/ICON.MD`
 
 ## Phase 0 - Foundations
 - [x] Finalize architecture docs and contracts.
@@ -19,13 +19,13 @@ Definition of done:
 - [x] Core modules compile with placeholder implementations.
 
 ## Phase 1 - Core Drum Machine MVP
-- [x] 16-step sequencer, 8 tracks (desktop runtime now drives step events against real-time audio callback timeline).
-- [x] Sample playback engine and transport (desktop runtime drives `engine-cpp` transport/start-stop/tempo at callback time).
-- [x] Audio device selection and latency settings (CoreAudio backend wired to runtime config model and callback processing).
-- [x] MIDI note input for pad triggering (CoreMIDI input wired to runtime pad triggers and live playback).
+- [-] 16-step sequencer, 8 tracks (core sequencing logic implemented in `control-rs`).
+- [-] Sample playback engine and transport (core one-shot playback and transport state implemented in `engine-cpp`).
+- [-] Audio device selection and latency settings (device config model implemented; backend integration pending).
+- [-] MIDI note input for pad triggering (note mapping and note-on trigger path implemented).
 
 Definition of done:
-- [x] Stable playback at target latency without XRuns in baseline profile (desktop smoke + soak regressions execute in CI via headless runtime path).
+- [-] Stable playback at target latency without XRuns in baseline profile (stress/golden regression harness implemented; real backend integration + device-level XRun profiling pending).
 
 ## Phase 2 - Instrument Control Depth
 - [x] Per-track controls: gain, pan, filter, envelope, pitch (implemented in `engine-cpp` + `presets-rs` models).

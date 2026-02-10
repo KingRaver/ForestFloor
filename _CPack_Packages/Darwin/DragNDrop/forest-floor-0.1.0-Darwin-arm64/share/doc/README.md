@@ -94,22 +94,6 @@ FF_DESKTOP_PLUGIN_PATH=/path/to/plugin.dylib \
   "./build/apps/desktop/Forest Floor.app/Contents/MacOS/Forest Floor"
 ```
 
-**Desktop runtime smoke/soak checks (CI-equivalent):**
-
-```bash
-"./build/apps/desktop/Forest Floor.app/Contents/MacOS/Forest Floor" --headless-smoke
-"./build/apps/desktop/Forest Floor.app/Contents/MacOS/Forest Floor" --headless-soak
-```
-
-## Desktop App Workflow
-
-- First launch automatically loads starter kit samples from `assets/starter-kit`.
-- Program beats with the 8x16 grid, trigger pads directly, and use transport/BPM/swing controls.
-- Adjust per-track controls (gain, pan, filter, decay, pitch, choke) in the lower panel.
-- Use MIDI Learn buttons to bind incoming CC messages to gain/cutoff/decay.
-- Save and load sessions via the app UI (`.ffproject`, `FF_PROJECT_V1`).
-- Open diagnostics directly from the app with **Open Diagnostics**.
-
 ## Engine Capabilities
 
 | Feature | Detail |
@@ -117,9 +101,7 @@ FF_DESKTOP_PLUGIN_PATH=/path/to/plugin.dylib \
 | Tracks | 8 tracks, polyphonic voice management per track |
 | Sequencer | 16-step patterns with swing, per-step velocity and probability |
 | Per-track controls | Gain, pan, filter cutoff, envelope decay, pitch (semitones), choke groups |
-| MIDI | Hardware device discovery/input, note trigger routing, learn-mode CC binding |
-| Desktop UI | Native macOS window with transport, 8 pads, 16-step grid, live playhead/state feedback |
-| Audio backend | CoreAudio callback output with runtime XRun telemetry and configurable sample rate/buffer |
+| MIDI | Device discovery, message parsing, learn-mode parameter binding |
 | Plugins | Instruments, effects, MIDI processors — loaded via trust-gated SDK |
 | Routing | Configurable signal graph with automation lanes and parameter interpolation |
 | Profiling | Callback timing, XRun detection, utilization metrics (target: peak < 75%) |
@@ -156,7 +138,7 @@ FF_DESKTOP_PLUGIN_PATH=/path/to/plugin.dylib \
 | Build guide | [docs/build/BUILD.md](docs/build/BUILD.md) |
 | Developer workflow | [docs/development/WORKFLOW.md](docs/development/WORKFLOW.md) |
 | Roadmap | [docs/project/ROADMAP.md](docs/project/ROADMAP.md) |
-| Desktop icon checklist | [docs/project/ICON.md](docs/project/ICON.md) |
+| Desktop icon checklist | [docs/project/ICON.MD](docs/project/ICON.MD) |
 | Decision log (ADRs) | [docs/project/DECISIONS.md](docs/project/DECISIONS.md) |
 | Testing strategy | [docs/quality/TESTING.md](docs/quality/TESTING.md) |
 | Contributing | [docs/community/CONTRIBUTING.md](docs/community/CONTRIBUTING.md) |

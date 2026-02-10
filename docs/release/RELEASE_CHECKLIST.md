@@ -25,6 +25,17 @@ Run full validation + signed package generation:
   --signing-key /absolute/path/to/release-signing-key.pem
 ```
 
+Optional macOS production signing/notarization:
+
+```bash
+./tools/scripts/release-package.sh \
+  --version 0.4.0 \
+  --require-signing \
+  --signing-key /absolute/path/to/release-signing-key.pem \
+  --codesign-identity "Developer ID Application: Example Corp (TEAMID)" \
+  --notary-profile forest-floor-notary
+```
+
 Expected outputs in `dist/`:
 - `forest-floor-<version>-<system>-<arch>.<ext>`
 - `forest-floor-<version>-checksums.sha256`
@@ -41,6 +52,7 @@ Expected outputs in `dist/`:
 For each artifact listed in checksum file:
 1. Validate SHA-256 checksum against `*-checksums.sha256`.
 2. Verify detached signature with `*-signing-public.pem`.
+3. On macOS release candidates, verify code signature/notarization (`codesign --verify` and `spctl --assess`).
 
 ## Diagnostics and Profiling Gate
 - Ensure `forest_floor_desktop` emits runtime diagnostics file in diagnostics directory.
