@@ -5,6 +5,43 @@ pub struct MidiBinding {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LearnTarget {
+    TrackGain(u8),
+    TrackFilterCutoff(u8),
+    TrackEnvelopeDecay(u8),
+}
+
+impl LearnTarget {
+    pub fn parameter_id(self) -> String {
+        match self {
+            LearnTarget::TrackGain(track_index) => {
+                format!("engine.track.{track_index}.gain")
+            }
+            LearnTarget::TrackFilterCutoff(track_index) => {
+                format!("engine.track.{track_index}.filter_cutoff")
+            }
+            LearnTarget::TrackEnvelopeDecay(track_index) => {
+                format!("engine.track.{track_index}.envelope_decay")
+            }
+        }
+    }
+
+    pub fn parameter_numeric_id(self) -> Option<u32> {
+        match self {
+            LearnTarget::TrackGain(track_index) => {
+                abi_rs::ff_track_parameter_id(track_index, abi_rs::FF_PARAM_SLOT_GAIN)
+            }
+            LearnTarget::TrackFilterCutoff(track_index) => {
+                abi_rs::ff_track_parameter_id(track_index, abi_rs::FF_PARAM_SLOT_FILTER_CUTOFF)
+            }
+            LearnTarget::TrackEnvelopeDecay(track_index) => {
+                abi_rs::ff_track_parameter_id(track_index, abi_rs::FF_PARAM_SLOT_ENVELOPE_DECAY)
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MidiMessage {
     NoteOn {
         channel: u8,
@@ -66,6 +103,7 @@ impl Default for NoteMap {
 #[derive(Debug, Default)]
 pub struct MappingProfile {
     bindings: Vec<MidiBinding>,
+    learn_target: Option<LearnTarget>,
 }
 
 impl MappingProfile {
@@ -86,6 +124,33 @@ impl MappingProfile {
             .iter()
             .find(|binding| binding.cc == cc)
             .map(|binding| binding.parameter_id.as_str())
+    }
+
+    pub fn begin_learn(&mut self, target: LearnTarget) {
+        self.learn_target = Some(target);
+    }
+
+    pub fn cancel_learn(&mut self) {
+        self.learn_target = None;
+    }
+
+    pub fn active_learn_target(&self) -> Option<LearnTarget> {
+        self.learn_target
+    }
+
+    pub fn handle_message_for_learn(&mut self, message: MidiMessage) -> Option<MidiBinding> {
+        let target = self.learn_target?;
+        if let MidiMessage::ControlChange { controller, .. } = message {
+            let parameter_id = target.parameter_id();
+            self.bind_cc(controller, parameter_id.clone());
+            self.learn_target = None;
+            return Some(MidiBinding {
+                cc: controller,
+                parameter_id,
+            });
+        }
+
+        None
     }
 }
 
@@ -138,7 +203,10 @@ pub fn note_on_to_pad_trigger(note_map: &NoteMap, note: u8, velocity: u8) -> Opt
 
 #[cfg(test)]
 mod tests {
-    use super::{note_on_to_pad_trigger, parse_midi_message, MappingProfile, MidiMessage, NoteMap};
+    use super::{
+        note_on_to_pad_trigger, parse_midi_message, LearnTarget, MappingProfile, MidiMessage,
+        NoteMap,
+    };
 
     #[test]
     fn bind_cc_replaces_existing_mapping() {
@@ -193,5 +261,75 @@ mod tests {
         assert_eq!(trigger.track_index, 2);
         assert_eq!(trigger.velocity, 100);
         assert_eq!(note_on_to_pad_trigger(&note_map, 38, 0), None);
+    }
+
+    #[test]
+    fn midi_learn_binds_first_control_change() {
+        let mut profile = MappingProfile::default();
+        profile.begin_learn(LearnTarget::TrackGain(2));
+
+        let learned = profile
+            .handle_message_for_learn(MidiMessage::ControlChange {
+                channel: 0,
+                controller: 21,
+                value: 80,
+            })
+            .expect("learn should produce binding");
+
+        assert_eq!(learned.cc, 21);
+        assert_eq!(learned.parameter_id, "engine.track.2.gain");
+        assert_eq!(profile.resolve_cc(21), Some("engine.track.2.gain"));
+        assert_eq!(profile.active_learn_target(), None);
+    }
+
+    #[test]
+    fn midi_learn_ignores_non_control_messages() {
+        let mut profile = MappingProfile::default();
+        profile.begin_learn(LearnTarget::TrackFilterCutoff(1));
+
+        assert_eq!(
+            profile.handle_message_for_learn(MidiMessage::NoteOn {
+                channel: 0,
+                note: 36,
+                velocity: 100,
+            }),
+            None
+        );
+        assert_eq!(
+            profile.active_learn_target(),
+            Some(LearnTarget::TrackFilterCutoff(1))
+        );
+    }
+
+    #[test]
+    fn learn_target_maps_to_expected_parameter_ids() {
+        assert_eq!(
+            LearnTarget::TrackGain(0).parameter_id(),
+            "engine.track.0.gain"
+        );
+        assert_eq!(
+            LearnTarget::TrackFilterCutoff(3).parameter_id(),
+            "engine.track.3.filter_cutoff"
+        );
+        assert_eq!(
+            LearnTarget::TrackEnvelopeDecay(7).parameter_id(),
+            "engine.track.7.envelope_decay"
+        );
+    }
+
+    #[test]
+    fn learn_target_maps_to_expected_numeric_ids() {
+        assert_eq!(
+            LearnTarget::TrackGain(0).parameter_numeric_id(),
+            Some(0x1001)
+        );
+        assert_eq!(
+            LearnTarget::TrackFilterCutoff(3).parameter_numeric_id(),
+            Some(0x1033)
+        );
+        assert_eq!(
+            LearnTarget::TrackEnvelopeDecay(7).parameter_numeric_id(),
+            Some(0x1074)
+        );
     }
 }

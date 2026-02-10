@@ -34,6 +34,7 @@ Fields:
   1. Drop lowest-priority non-critical events.
   2. Emit overflow diagnostic on telemetry channel.
   3. Never block RT thread.
+- Project recall should replay the same ordered event stream and parameter update payloads for identical saved state.
 
 ## Priority Classes
 - Critical: note on/off, transport start/stop.

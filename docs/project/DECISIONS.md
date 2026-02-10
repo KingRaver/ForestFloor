@@ -60,3 +60,41 @@ Template:
 - Consequences
   - Two toolchains increase setup requirements.
   - Language boundaries stay clear and independently testable.
+
+## ADR-0004
+- Date: 2026-02-10
+- Status: Accepted
+- Context
+  - Phase 2 requires kit/pattern/project save-load with deterministic recall checks.
+  - Development environments may run without outbound network access for fetching new crates.
+- Decision
+  - Implement persistence in `presets-rs` using a deterministic, human-inspectable text format:
+    - `FF_KIT_V1`
+    - `FF_PATTERN_V1`
+    - `FF_PROJECT_V1`
+  - Keep serialization dependency-free (std only) to avoid external crate fetch requirements.
+- Alternatives considered
+  - JSON via `serde`/`serde_json`.
+  - Binary-only format.
+- Consequences
+  - Additional custom parser maintenance burden.
+  - Deterministic roundtrip behavior is explicit and testable in offline environments.
+
+## ADR-0005
+- Date: 2026-02-10
+- Status: Accepted
+- Context
+  - Phase 2 requires deterministic project recall across Rust control logic and C++ engine application.
+  - String parameter IDs are useful for UI/mapping, but RT-safe engine updates need compact numeric IDs.
+- Decision
+  - Introduce a stable numeric track-parameter ID scheme in the shared ABI:
+    - base `0x1000`
+    - stride `0x10`
+    - slots for gain/pan/filter/envelope/pitch/choke
+  - Use this scheme for recall-generated `FfParameterUpdate` payloads and engine-side `applyParameterUpdate`.
+- Alternatives considered
+  - Keep string IDs through the control->engine boundary.
+  - Hardcode non-versioned parameter IDs in engine only.
+- Consequences
+  - ABI constants must remain synchronized between C and Rust.
+  - Cross-language recall behavior is deterministic and directly testable.

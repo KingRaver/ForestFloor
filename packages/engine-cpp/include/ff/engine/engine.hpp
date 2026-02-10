@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "ff/abi/contracts.h"
 #include "ff/dsp/gain.hpp"
 
 namespace ff::engine {
@@ -20,6 +21,15 @@ struct TransportState final {
   bool is_playing = false;
 };
 
+struct TrackParameters final {
+  float gain = 1.0F;
+  float pan = 0.0F;
+  float filter_cutoff = 1.0F;
+  float envelope_decay = 1.0F;
+  float pitch_semitones = 0.0F;
+  int choke_group = -1;
+};
+
 class Engine final {
  public:
   static constexpr std::size_t kTrackCount = 8;
@@ -33,6 +43,9 @@ class Engine final {
   bool setTrackSample(std::size_t track_index, std::vector<float> sample);
   void clearTrackSample(std::size_t track_index) noexcept;
   bool triggerTrack(std::size_t track_index, float velocity) noexcept;
+  bool setTrackParameters(std::size_t track_index, TrackParameters parameters) noexcept;
+  [[nodiscard]] TrackParameters trackParameters(std::size_t track_index) const noexcept;
+  bool applyParameterUpdate(std::uint32_t parameter_id, float normalized_value) noexcept;
 
   bool handleMidiNoteOn(std::uint8_t note, std::uint8_t velocity) noexcept;
   void setPadBaseNote(std::uint8_t base_note) noexcept;
@@ -50,10 +63,25 @@ class Engine final {
  private:
   struct TrackVoice final {
     std::vector<float> sample;
-    std::size_t playhead = 0;
-    float velocity = 0.0F;
+    double playhead = 0.0;
+    float trigger_velocity = 0.0F;
+    float envelope_value = 0.0F;
+    float filter_state = 0.0F;
     bool active = false;
+    TrackParameters parameters;
   };
+
+  static float clampGain(float gain) noexcept;
+  static float clampPan(float pan) noexcept;
+  static float clampFilterCutoff(float cutoff) noexcept;
+  static float clampEnvelopeDecay(float decay) noexcept;
+  static float clampPitchSemitones(float semitones) noexcept;
+  static int clampChokeGroup(int choke_group) noexcept;
+  [[nodiscard]] float sampleAt(const TrackVoice& track) const noexcept;
+  [[nodiscard]] float pitchRatio(float semitones) const noexcept;
+  [[nodiscard]] float filterAlpha(float cutoff) const noexcept;
+  [[nodiscard]] float envelopeCoefficient(float decay) const noexcept;
+  [[nodiscard]] float panGain(float pan) const noexcept;
 
   static float clampVelocity(float velocity) noexcept;
 

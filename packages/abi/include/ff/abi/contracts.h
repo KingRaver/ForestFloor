@@ -13,6 +13,20 @@ enum {
 };
 
 enum {
+  FF_PARAM_TRACK_BASE = 0x1000,
+  FF_PARAM_TRACK_STRIDE = 0x10,
+};
+
+enum {
+  FF_PARAM_SLOT_GAIN = 1,
+  FF_PARAM_SLOT_PAN = 2,
+  FF_PARAM_SLOT_FILTER_CUTOFF = 3,
+  FF_PARAM_SLOT_ENVELOPE_DECAY = 4,
+  FF_PARAM_SLOT_PITCH = 5,
+  FF_PARAM_SLOT_CHOKE_GROUP = 6,
+};
+
+enum {
   FF_EVENT_TYPE_NOTE_ON = 1,
   FF_EVENT_TYPE_NOTE_OFF = 2,
   FF_EVENT_TYPE_TRIGGER = 3,
@@ -65,4 +79,3 @@ typedef struct ff_parameter_update_t {
 #endif
 
 #endif  // FF_ABI_CONTRACTS_H_
-

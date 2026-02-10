@@ -25,13 +25,13 @@ Definition of done:
 - [-] Stable playback at target latency without XRuns in baseline profile (requires backend integration + stress profiling).
 
 ## Phase 2 - Instrument Control Depth
-- [ ] Per-track controls: gain, pan, filter, envelope, pitch.
-- [ ] Choke groups and swing.
-- [ ] Save/load kits and patterns.
-- [ ] MIDI Learn for initial parameter set.
+- [x] Per-track controls: gain, pan, filter, envelope, pitch (implemented in `engine-cpp` + `presets-rs` models).
+- [x] Choke groups and swing (implemented in `control-rs` and `engine-cpp` behavior/tests).
+- [x] Save/load kits and patterns (deterministic text persistence implemented in `presets-rs`).
+- [x] MIDI Learn for initial parameter set (implemented in `midi-rs` for gain/cutoff/decay targets).
 
 Definition of done:
-- [ ] End-to-end project save/load with deterministic playback recall.
+- [x] End-to-end project save/load with deterministic playback recall (deterministic event replay + deterministic engine recall parameter payload generation).
 
 ## Phase 3 - Extensibility
 - [ ] Plugin SDK v1 for instruments/effects/MIDI nodes.

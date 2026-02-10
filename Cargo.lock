@@ -9,10 +9,17 @@ version = "0.1.0"
 [[package]]
 name = "control-rs"
 version = "0.1.0"
+dependencies = [
+ "abi-rs",
+ "presets-rs",
+]
 
 [[package]]
 name = "midi-rs"
 version = "0.1.0"
+dependencies = [
+ "abi-rs",
+]
 
 [[package]]
 name = "presets-rs"

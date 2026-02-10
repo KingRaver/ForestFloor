@@ -4,4 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-
+abi-rs = { path = "../abi-rs" }
+presets-rs = { path = "../presets-rs" }

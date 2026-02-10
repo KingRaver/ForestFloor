@@ -11,6 +11,16 @@
 - Binary sidecar blobs allowed for large sample/index data.
 - Schema version included in every persisted object.
 
+## Current Reference Format (Phase 2)
+- `presets-rs` currently uses deterministic text serialization for:
+  - Kits (`FF_KIT_V1`)
+  - Patterns (`FF_PATTERN_V1`)
+  - Projects (`FF_PROJECT_V1`)
+- The format is intentionally stable for save/load roundtrip tests and offline development.
+- Recall output from saved projects currently includes:
+  - deterministic sequencer event replay payloads
+  - deterministic engine parameter update payloads (numeric ABI IDs)
+
 ## Suggested Layout
 - `projects/<name>/project.json`
 - `projects/<name>/kits/*.json`
