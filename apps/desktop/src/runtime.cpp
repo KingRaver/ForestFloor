@@ -10,6 +10,7 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -74,6 +75,42 @@ std::string midiLearnBindingDescription(std::size_t track_index,
 
   return "CC " + std::to_string(cc) + " -> track " +
          std::to_string(track_index + 1U) + " " + slot_name;
+}
+
+std::filesystem::path resolveStarterSamplePath(
+    const std::filesystem::path& starter_root,
+    const std::string& configured_path,
+    std::string_view fallback_file_name) {
+  if (!configured_path.empty()) {
+    std::filesystem::path configured(configured_path);
+    if (configured.is_absolute()) {
+      if (std::filesystem::exists(configured)) {
+        return configured;
+      }
+      if (configured.has_filename()) {
+        const auto by_name = starter_root / configured.filename();
+        if (std::filesystem::exists(by_name)) {
+          return by_name;
+        }
+      }
+    } else {
+      const auto under_starter = starter_root / configured;
+      if (std::filesystem::exists(under_starter)) {
+        return under_starter;
+      }
+      if (std::filesystem::exists(configured)) {
+        return configured;
+      }
+      if (configured.has_filename()) {
+        const auto by_name = starter_root / configured.filename();
+        if (std::filesystem::exists(by_name)) {
+          return by_name;
+        }
+      }
+    }
+  }
+
+  return starter_root / fallback_file_name;
 }
 
 }  // namespace
@@ -423,17 +460,24 @@ bool Runtime::loadStarterKit(std::string* error_message) {
 
     for (std::size_t track = 0; track < kTrackCount; ++track) {
       const auto& sample_path = shipped_project.tracks[track].sample_path;
-      if (sample_path.empty()) {
+      const auto resolved = resolveStarterSamplePath(
+          root, sample_path, kStarterSampleNames[track]);
+
+      std::string load_error;
+      if (setTrackSampleFromFile(track, resolved, &load_error)) {
         continue;
       }
-      std::string load_error;
-      if (!setTrackSampleFromFile(track, std::filesystem::path(sample_path), &load_error)) {
-        if (error_message != nullptr) {
-          *error_message = "failed loading shipped starter sample: " + sample_path +
-                           " (" + load_error + ")";
-        }
-        return false;
+
+      const auto default_track_sample = root / kStarterSampleNames[track];
+      if (resolved != default_track_sample &&
+          setTrackSampleFromFile(track, default_track_sample, &load_error)) {
+        continue;
       }
+
+      LoadedSample fallback;
+      fallback.source_sample_rate_hz = config_.audio.sample_rate_hz;
+      fallback.mono = makeSyntheticFallbackSample(track, config_.audio.sample_rate_hz);
+      setTrackSampleFromLoaded(track, fallback, default_track_sample, nullptr);
     }
 
     {
