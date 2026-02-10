@@ -1,0 +1,8 @@
+[workspace]
+members = [
+  "packages/abi-rs",
+  "packages/control-rs",
+  "packages/midi-rs",
+  "packages/presets-rs",
+]
+resolver = "2"
