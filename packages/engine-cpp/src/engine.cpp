@@ -1,6 +1,7 @@
 #include "ff/engine/engine.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <utility>
@@ -28,6 +29,9 @@ void Engine::process(float* mono_buffer, std::size_t frames) noexcept {
   if (mono_buffer == nullptr || frames == 0) {
     return;
   }
+
+  const auto started_at = profiling_enabled_ ? std::chrono::steady_clock::now()
+                                             : std::chrono::steady_clock::time_point{};
 
   std::fill_n(mono_buffer, frames, 0.0F);
   for (std::size_t frame = 0; frame < frames; ++frame) {
@@ -61,6 +65,13 @@ void Engine::process(float* mono_buffer, std::size_t frames) noexcept {
   }
 
   master_gain_.process(mono_buffer, frames);
+
+  if (profiling_enabled_) {
+    const auto elapsed =
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - started_at)
+            .count();
+    recordProcessTiming(frames, static_cast<double>(elapsed));
+  }
 }
 
 bool Engine::setTrackSample(std::size_t track_index, std::vector<float> sample) {
@@ -245,6 +256,14 @@ bool Engine::setAudioDeviceConfig(AudioDeviceConfig config) {
 
 AudioDeviceConfig Engine::audioDeviceConfig() const { return audio_device_config_; }
 
+void Engine::setProfilingEnabled(bool enabled) noexcept { profiling_enabled_ = enabled; }
+
+bool Engine::profilingEnabled() const noexcept { return profiling_enabled_; }
+
+void Engine::resetPerformanceStats() noexcept { performance_stats_ = PerformanceStats{}; }
+
+PerformanceStats Engine::performanceStats() const noexcept { return performance_stats_; }
+
 float Engine::clampVelocity(float velocity) noexcept {
   return std::clamp(velocity, 0.0F, 1.0F);
 }
@@ -301,5 +320,40 @@ float Engine::envelopeCoefficient(float decay) const noexcept {
 }
 
 float Engine::panGain(float pan) const noexcept { return 1.0F - (std::fabs(pan) * 0.5F); }
+
+void Engine::recordProcessTiming(std::size_t frames, double elapsed_us) noexcept {
+  performance_stats_.processed_blocks += 1;
+  performance_stats_.processed_frames += static_cast<std::uint64_t>(frames);
+  performance_stats_.peak_block_duration_us =
+      std::max(performance_stats_.peak_block_duration_us, elapsed_us);
+
+  const double block_budget_us = blockBudgetMicros(frames);
+  const double utilization = block_budget_us > 0.0 ? (elapsed_us / block_budget_us) : 0.0;
+  performance_stats_.peak_callback_utilization =
+      std::max(performance_stats_.peak_callback_utilization, utilization);
+  if (utilization > 1.0) {
+    performance_stats_.xrun_count += 1;
+  }
+
+  const double sample_count = static_cast<double>(performance_stats_.processed_blocks);
+  if (sample_count <= 0.0) {
+    return;
+  }
+
+  performance_stats_.average_block_duration_us +=
+      (elapsed_us - performance_stats_.average_block_duration_us) / sample_count;
+  performance_stats_.average_callback_utilization +=
+      (utilization - performance_stats_.average_callback_utilization) / sample_count;
+}
+
+double Engine::blockBudgetMicros(std::size_t frames) const noexcept {
+  const auto sample_rate_hz = audio_device_config_.sample_rate_hz;
+  if (sample_rate_hz == 0) {
+    return 0.0;
+  }
+
+  return (static_cast<double>(frames) * 1'000'000.0) /
+         static_cast<double>(sample_rate_hz);
+}
 
 }  // namespace ff::engine

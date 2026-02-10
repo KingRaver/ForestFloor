@@ -14,6 +14,8 @@
   - Control plane -> engine event flow.
   - Project load/save roundtrip consistency.
   - Shared ABI fixture checks across Rust and C++ for recall parameter updates.
+  - Engine profiling tool smoke check (`ff_engine_profile_smoke`).
+  - Diagnostics reporter output tests (`ff_diagnostics_tests`).
   - Plugin host dynamic-load fixtures (valid, isolated, missing-symbol) for symbol validation paths.
   - Plugin host SDK v1 lifecycle wiring tests (internal + external plugin activation/process/reset/deactivate).
   - Plugin host routing graph and automation interpolation dispatch tests.
@@ -32,3 +34,4 @@
 - Run all unit and integration tests on every PR.
 - Run stress and golden non-unit regression on scheduled CI (`non-unit-regression`) and manual dispatch.
 - Use `./tools/scripts/dev-check.sh --clean --with-non-unit` for release-candidate validation.
+- Run release packaging/signing smoke checks (`release-smoke` CI job and `./tools/scripts/release-check.sh`).

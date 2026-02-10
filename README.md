@@ -28,6 +28,7 @@ Forest Floor is a modular, standalone drum machine platform designed for long-te
 - ADR log: `docs/project/DECISIONS.md`
 - Testing strategy: `docs/quality/TESTING.md`
 - Contribution rules: `docs/community/CONTRIBUTING.md`
+- Release checklist: `docs/release/RELEASE_CHECKLIST.md`
 
 ## Status
-Documentation baseline and monorepo scaffolding initialized.
+Documentation baseline, core Phase 0-4 infrastructure, and release automation are implemented.

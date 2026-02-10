@@ -217,3 +217,25 @@ Template:
 - Consequences
   - Invalid persisted state is rejected earlier and more deterministically.
   - Non-unit regressions are monitored on a scheduled CI cadence without slowing default PR checks.
+
+## ADR-0012
+- Date: 2026-02-10
+- Status: Accepted
+- Context
+  - Phase 4 requires production-readiness capabilities beyond functional correctness: profiling visibility, release automation with artifact signing, and crash diagnostics capture.
+  - Existing CI validated build/test behavior but did not produce signed installer artifacts or structured runtime crash reports.
+- Decision
+  - Add engine callback performance metrics in `engine-cpp` with runtime snapshot APIs and a dedicated profiling tool (`ff_engine_profile`) covered by integration smoke test.
+  - Add reusable diagnostics module (`diagnostics-cpp`) for runtime and crash report file emission, and install a desktop `std::terminate` handler that writes crash diagnostics.
+  - Standardize release packaging through CMake/CPack installers plus signed artifact automation:
+    - `tools/scripts/release-package.sh` (build/package/checksum/signature/manifest)
+    - `tools/scripts/release-check.sh` (smoke verification of signing + integrity)
+    - `.github/workflows/release.yml` (tag/manual signed release flow)
+- Alternatives considered
+  - Keep profiling only in ad-hoc benchmark code with no host-facing metrics API.
+  - Keep release packaging as manual local commands without CI-driven signature enforcement.
+  - Embed diagnostics logic only in `apps/desktop` instead of a reusable module.
+- Consequences
+  - Production diagnostics and performance telemetry are now consistently emitted in file-backed artifacts.
+  - Release process is reproducible from scripts/workflows and fails closed when signing requirements are enabled.
+  - CI scope increases with a dedicated release-automation smoke job.

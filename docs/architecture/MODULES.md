@@ -15,6 +15,8 @@
   - Project/kit/pattern schemas, migrations, persistence.
 - `packages/plugin-host`
   - SDK loader, plugin validation, capability negotiation.
+- `packages/diagnostics-cpp`
+  - Crash/runtime diagnostic report writing and host failure telemetry.
 - `packages/abi`
   - Language-neutral C ABI event and parameter contracts.
 - `packages/abi-rs`

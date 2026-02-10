@@ -10,6 +10,7 @@ Options:
   --skip-cpp    Skip C++ configure/build/test checks.
   --skip-rust   Skip Rust workspace tests.
   --with-non-unit  Include non-unit regression checks (stress/golden).
+  --with-release  Include release packaging/signing smoke checks.
   --clean       Remove local build outputs before running checks.
   -h, --help    Show this help message.
 USAGE
@@ -34,6 +35,7 @@ RUN_RUST=1
 TOOLS_ONLY=0
 CLEAN=0
 RUN_NON_UNIT=0
+RUN_RELEASE=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -51,6 +53,9 @@ while [[ $# -gt 0 ]]; do
       ;;
     --with-non-unit)
       RUN_NON_UNIT=1
+      ;;
+    --with-release)
+      RUN_RELEASE=1
       ;;
     -h|--help)
       usage
@@ -179,6 +184,11 @@ fi
 if [[ "$RUN_RUST" -eq 1 ]]; then
   log "Running Rust tests"
   cargo test --workspace
+fi
+
+if [[ "$RUN_RELEASE" -eq 1 ]]; then
+  log "Running release packaging/signing smoke check"
+  ./tools/scripts/release-check.sh
 fi
 
 log "All checks passed."

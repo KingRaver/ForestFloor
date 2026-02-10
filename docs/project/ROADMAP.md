@@ -42,9 +42,9 @@ Definition of done:
 - [x] At least one internal plugin and one external plugin loaded via SDK v1.
 
 ## Phase 4 - Production Readiness
-- [ ] Performance optimization and profiling tooling.
-- [ ] Installer/signing/release automation.
-- [ ] Crash reporting and diagnostics.
+- [x] Performance optimization and profiling tooling (engine callback profiling stats + `ff_engine_profile` integration smoke target).
+- [x] Installer/signing/release automation (`cpack`-based packaging + checksum/signature generation + release workflow).
+- [x] Crash reporting and diagnostics (diagnostics reporter module + desktop terminate/exception reporting).
 
 Definition of done:
-- [ ] Repeatable signed builds and release checklist completed.
+- [x] Repeatable signed builds and release checklist completed.

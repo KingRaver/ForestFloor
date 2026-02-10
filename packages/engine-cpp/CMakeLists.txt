@@ -26,3 +26,16 @@ add_test(NAME ff_engine_nonunit_tests COMMAND ff_engine_nonunit_tests)
 set_tests_properties(ff_engine_nonunit_tests PROPERTIES
   LABELS "nonunit;stress;golden"
 )
+
+add_executable(ff_engine_profile
+  tools/engine_profile.cpp
+)
+
+target_compile_features(ff_engine_profile PRIVATE cxx_std_20)
+target_link_libraries(ff_engine_profile PRIVATE ff_engine)
+add_test(NAME ff_engine_profile_smoke
+  COMMAND ff_engine_profile --blocks 128 --frames 128 --output "${CMAKE_CURRENT_BINARY_DIR}/engine_profile_smoke.json"
+)
+set_tests_properties(ff_engine_profile_smoke PROPERTIES
+  LABELS "integration;profiling"
+)

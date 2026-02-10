@@ -30,6 +30,16 @@ struct TrackParameters final {
   int choke_group = -1;
 };
 
+struct PerformanceStats final {
+  std::uint64_t processed_blocks = 0;
+  std::uint64_t processed_frames = 0;
+  std::uint64_t xrun_count = 0;
+  double average_block_duration_us = 0.0;
+  double peak_block_duration_us = 0.0;
+  double average_callback_utilization = 0.0;
+  double peak_callback_utilization = 0.0;
+};
+
 class Engine final {
  public:
   static constexpr std::size_t kTrackCount = 8;
@@ -61,6 +71,11 @@ class Engine final {
   bool setAudioDeviceConfig(AudioDeviceConfig config);
   [[nodiscard]] AudioDeviceConfig audioDeviceConfig() const;
 
+  void setProfilingEnabled(bool enabled) noexcept;
+  [[nodiscard]] bool profilingEnabled() const noexcept;
+  void resetPerformanceStats() noexcept;
+  [[nodiscard]] PerformanceStats performanceStats() const noexcept;
+
  private:
   struct TrackVoice final {
     std::vector<float> sample;
@@ -83,6 +98,8 @@ class Engine final {
   [[nodiscard]] float filterAlpha(float cutoff) const noexcept;
   [[nodiscard]] float envelopeCoefficient(float decay) const noexcept;
   [[nodiscard]] float panGain(float pan) const noexcept;
+  void recordProcessTiming(std::size_t frames, double elapsed_us) noexcept;
+  [[nodiscard]] double blockBudgetMicros(std::size_t frames) const noexcept;
 
   static float clampVelocity(float velocity) noexcept;
 
@@ -91,6 +108,8 @@ class Engine final {
   std::uint8_t pad_base_note_ = kDefaultPadBaseNote;
   TransportState transport_;
   AudioDeviceConfig audio_device_config_;
+  bool profiling_enabled_ = false;
+  PerformanceStats performance_stats_{};
 };
 
 }  // namespace ff::engine

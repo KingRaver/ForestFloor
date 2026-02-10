@@ -16,6 +16,7 @@ Useful flags:
 - `--skip-cpp`: run only Rust checks.
 - `--skip-rust`: run only C++ checks.
 - `--with-non-unit`: include non-unit stress/golden regression tests.
+- `--with-release`: include release packaging/signing smoke verification.
 
 CI parity:
 - GitHub Actions runs the same command in `/Users/jeffspirlock/ForestFloor/.github/workflows/ci.yml`.
@@ -111,4 +112,10 @@ Run this for release candidates or parity with scheduled CI non-unit checks:
 
 ```bash
 ./tools/scripts/dev-check.sh --clean --with-non-unit
+```
+
+Release automation smoke check:
+
+```bash
+./tools/scripts/dev-check.sh --clean --with-release
 ```

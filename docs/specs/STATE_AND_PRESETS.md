@@ -41,3 +41,4 @@
 - Atomic write via temp file + rename.
 - Journal last known good state.
 - On crash restart, prompt with recovery candidate.
+- Desktop host writes runtime/crash diagnostics under `FF_DIAGNOSTICS_DIR` (default: `./diagnostics`) to aid recovery triage.

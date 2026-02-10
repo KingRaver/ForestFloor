@@ -14,8 +14,9 @@ This policy covers Forest Floor source, build pipeline, release artifacts, and p
 
 ## Release Integrity
 - Build in CI from tagged commits.
-- Sign release artifacts.
-- Publish checksums with releases.
+- Sign release artifacts with detached signatures.
+- Publish checksums and signing public key with releases.
+- Fail release automation when signing is required but key material is missing.
 
 ## Plugin Trust Model
 - External plugins are untrusted by default.

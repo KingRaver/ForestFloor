@@ -1,0 +1,109 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version without leading v (example: 0.4.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: Package Signed Release (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+
+      - name: Setup Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v4
+
+      - name: Setup MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Resolve release version
+        id: release_version
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            VERSION="${INPUT_VERSION}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          if [[ -z "${VERSION}" ]]; then
+            echo "Unable to resolve release version."
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare signing key
+        shell: bash
+        env:
+          FF_RELEASE_SIGNING_KEY_PEM: ${{ secrets.FF_RELEASE_SIGNING_KEY_PEM }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${FF_RELEASE_SIGNING_KEY_PEM}" ]]; then
+            echo "Missing required secret FF_RELEASE_SIGNING_KEY_PEM"
+            exit 1
+          fi
+          printf '%s' "${FF_RELEASE_SIGNING_KEY_PEM}" > release-signing-key.pem
+          chmod 600 release-signing-key.pem
+
+      - name: Build, package, and sign release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./tools/scripts/release-package.sh \
+            --version "${{ steps.release_version.outputs.version }}" \
+            --output-dir dist \
+            --build-dir build-release \
+            --require-signing \
+            --signing-key release-signing-key.pem
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.os }}-${{ steps.release_version.outputs.version }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    if: github.event_name == 'push'
+    needs: package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: release-artifacts
+
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/*

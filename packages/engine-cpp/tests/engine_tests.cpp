@@ -230,6 +230,37 @@ void recallFixtureUpdatesApplyThroughAbiBatchPath() {
   assert(track3.choke_group == -1);
 }
 
+void profilingStatsTrackCallbackWork() {
+  ff::engine::Engine engine;
+  ff::engine::AudioDeviceConfig config;
+  config.sample_rate_hz = 48'000;
+  config.buffer_size_frames = 64;
+  assert(engine.setAudioDeviceConfig(config));
+  assert(engine.setTrackSample(0, std::vector<float>{1.0F, 0.5F, 0.25F, 0.0F}));
+
+  engine.setProfilingEnabled(true);
+  engine.resetPerformanceStats();
+
+  std::array<float, 64> buffer{};
+  for (std::size_t block = 0; block < 8; ++block) {
+    assert(engine.triggerTrack(0, 1.0F));
+    engine.process(buffer.data(), buffer.size());
+  }
+
+  const auto stats = engine.performanceStats();
+  assert(stats.processed_blocks == 8);
+  assert(stats.processed_frames == (8 * buffer.size()));
+  assert(stats.peak_block_duration_us >= stats.average_block_duration_us);
+  assert(stats.peak_callback_utilization >= stats.average_callback_utilization);
+
+  engine.setProfilingEnabled(false);
+  engine.resetPerformanceStats();
+  engine.process(buffer.data(), buffer.size());
+  const auto disabled_stats = engine.performanceStats();
+  assert(disabled_stats.processed_blocks == 0);
+  assert(disabled_stats.processed_frames == 0);
+}
+
 }  // namespace
 
 int main() {
@@ -243,5 +274,6 @@ int main() {
   parameterUpdatesMapNormalizedValuesToTrackParameters();
   invalidParameterUpdateIsRejected();
   recallFixtureUpdatesApplyThroughAbiBatchPath();
+  profilingStatsTrackCallbackWork();
   return 0;
 }
