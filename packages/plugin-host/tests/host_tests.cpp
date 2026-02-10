@@ -5,6 +5,10 @@
 #include <filesystem>
 #include <string>
 
+#if defined(_WIN32)
+#include <windows.h>
+#endif
+
 namespace {
 
 #define FF_TEST_EXPECT(condition)                                                  \
@@ -371,6 +375,11 @@ void rejectsDuplicateDynamicPluginId() {
 }  // namespace
 
 int main() {
+#if defined(_WIN32)
+  // Suppress Windows error dialogs (missing DLL, crash reporting) that would
+  // block indefinitely on headless CI runners.
+  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
+#endif
   rejectsIncompatibleSdkMajor();
   rejectsMissingEntrypoints();
   rejectsDynamicPluginOutsideTrustedRoots();

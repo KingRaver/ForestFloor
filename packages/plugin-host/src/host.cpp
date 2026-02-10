@@ -31,7 +31,11 @@ class DynamicLibrary final {
   bool open(const std::string& path, std::string* error) noexcept {
     close();
 #if defined(_WIN32)
+    // Suppress system error dialogs (e.g. missing DLL dependency popups)
+    // that would block indefinitely on headless/CI environments.
+    const UINT prev_error_mode = SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX);
     const HMODULE module = LoadLibraryA(path.c_str());
+    SetErrorMode(prev_error_mode);
     if (module == nullptr) {
       if (error != nullptr) {
         *error = "LoadLibraryA failed with error " + std::to_string(GetLastError());

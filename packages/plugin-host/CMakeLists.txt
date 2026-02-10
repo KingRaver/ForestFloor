@@ -52,6 +52,6 @@ add_dependencies(ff_plugin_host_tests ff_test_plugin_valid ff_test_plugin_isolat
 
 add_test(NAME ff_plugin_host_tests COMMAND ff_plugin_host_tests)
 set_tests_properties(ff_plugin_host_tests PROPERTIES
-  TIMEOUT 120
+  TIMEOUT 30
   ENVIRONMENT "FF_TEST_PLUGIN_VALID=$<TARGET_FILE:ff_test_plugin_valid>;FF_TEST_PLUGIN_ISOLATED=$<TARGET_FILE:ff_test_plugin_isolated>;FF_TEST_PLUGIN_INVALID=$<TARGET_FILE:ff_test_plugin_missing_symbols>"
 )
