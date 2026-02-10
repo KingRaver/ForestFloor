@@ -8,16 +8,21 @@
   "configurePresets": [
     {
       "name": "macos-arm64-dev",
-      "displayName": "macOS ARM64 (LLVM + Ninja)",
+      "displayName": "macOS ARM64 (System Clang + Ninja)",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build",
-      "cacheVariables": {
-        "CMAKE_CXX_COMPILER": "/opt/homebrew/opt/llvm/bin/clang++"
-      },
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "macos-arm64-llvm",
+      "displayName": "macOS ARM64 (Homebrew LLVM + Ninja)",
+      "inherits": "macos-arm64-dev",
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "/opt/homebrew/opt/llvm/bin/clang++"
       }
     }
   ],
@@ -25,7 +30,10 @@
     {
       "name": "macos-arm64-dev",
       "configurePreset": "macos-arm64-dev"
+    },
+    {
+      "name": "macos-arm64-llvm",
+      "configurePreset": "macos-arm64-llvm"
     }
   ]
 }
-

@@ -38,9 +38,13 @@ Expected on Apple Silicon:
 From repo root:
 
 ```bash
-# C++ configure/build (Apple Silicon preset)
+# C++ configure/build (Apple Silicon, system clang)
 cmake --preset macos-arm64-dev
 cmake --build --preset macos-arm64-dev
+
+# C++ configure/build (Apple Silicon, Homebrew LLVM)
+cmake --preset macos-arm64-llvm
+cmake --build --preset macos-arm64-llvm
 
 # C++ tests (currently none registered yet)
 ctest --test-dir build --output-on-failure
@@ -76,7 +80,10 @@ cargo test --workspace
 
 ## Tooling Notes
 - CMake preset is defined in `CMakePresets.json`.
-- C++ builds use Homebrew LLVM (`/opt/homebrew/opt/llvm/bin/clang++`) on macOS ARM.
+- macOS presets:
+  - `macos-arm64-dev` uses system clang (CI-compatible).
+  - `macos-arm64-llvm` uses Homebrew LLVM.
+- `./tools/scripts/dev-check.sh` auto-selects `macos-arm64-llvm` only when available; otherwise it uses `macos-arm64-dev`.
 - If shell paths look wrong, start a new terminal and verify `~/.zprofile` loads `/opt/homebrew` and `~/.cargo/env`.
 
 ## Troubleshooting

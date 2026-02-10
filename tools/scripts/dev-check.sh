@@ -114,15 +114,23 @@ fi
 
 if [[ "$RUN_CPP" -eq 1 ]]; then
   if [[ "$HOST_OS" == "Darwin" && "$HOST_ARCH" == "arm64" ]] && [[ -f "$REPO_ROOT/CMakePresets.json" ]] && cmake --list-presets >/dev/null 2>&1; then
-    if cmake --list-presets | grep -q 'macos-arm64-dev'; then
-      log "Configuring C++ with preset: macos-arm64-dev"
-      cmake --preset macos-arm64-dev
-      log "Building C++ with preset: macos-arm64-dev"
-      cmake --build --preset macos-arm64-dev
+    PRESETS="$(cmake --list-presets)"
+    SELECTED_PRESET=""
+
+    if [[ -x "/opt/homebrew/opt/llvm/bin/clang++" ]] && grep -q 'macos-arm64-llvm' <<<"$PRESETS"; then
+      SELECTED_PRESET="macos-arm64-llvm"
+    elif grep -q 'macos-arm64-dev' <<<"$PRESETS"; then
+      SELECTED_PRESET="macos-arm64-dev"
+    fi
+
+    if [[ -n "$SELECTED_PRESET" ]]; then
+      log "Configuring C++ with preset: $SELECTED_PRESET"
+      cmake --preset "$SELECTED_PRESET"
+      log "Building C++ with preset: $SELECTED_PRESET"
+      cmake --build --preset "$SELECTED_PRESET"
     else
-      log "Configuring C++ (generic)"
+      log "No compatible macOS ARM preset found; falling back to generic configure/build."
       cmake -S . -B build -G Ninja
-      log "Building C++ (generic)"
       cmake --build build
     fi
   else
