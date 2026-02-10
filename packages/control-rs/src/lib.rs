@@ -625,6 +625,10 @@ mod tests {
         lines.join("\n")
     }
 
+    fn normalize_newlines(value: &str) -> String {
+        value.lines().collect::<Vec<_>>().join("\n")
+    }
+
     #[test]
     fn pattern_supports_eight_tracks_and_sixteen_steps() {
         let mut pattern = Pattern::default();
@@ -897,7 +901,10 @@ mod tests {
         let project = canonical_fixture_project();
         let recall = engine_recall_from_project(&project, 48_000).expect("recall should map");
         let rendered = format_updates_csv_for_tracks(&recall.parameter_updates, &[0, 3]);
-        assert_eq!(rendered.trim(), PHASE2_ENGINE_RECALL_FIXTURE.trim());
+        assert_eq!(
+            normalize_newlines(rendered.trim()),
+            normalize_newlines(PHASE2_ENGINE_RECALL_FIXTURE.trim())
+        );
     }
 
     #[test]
