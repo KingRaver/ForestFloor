@@ -2,7 +2,7 @@ build/
 build-release/
 target/
 dist/
-diagnostics/
+/diagnostics/
 .DS_Store
 *.log
 *.tmp
