@@ -58,7 +58,9 @@ if(APPLE)
 endif()
 
 if(WIN32)
-  file(TO_NATIVE_PATH "${FF_APP_ICON_ICO}" FF_APP_ICON_ICO_NATIVE)
+  # RC string literals treat backslashes as escapes (\a, \b, ...), so pass
+  # a CMake-style path with forward slashes.
+  file(TO_CMAKE_PATH "${FF_APP_ICON_ICO}" FF_APP_ICON_ICO_RC_PATH)
   configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/windows/forest_floor_desktop.rc.in"
     "${CMAKE_CURRENT_BINARY_DIR}/forest_floor_desktop.rc"
