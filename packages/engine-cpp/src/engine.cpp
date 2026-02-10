@@ -185,6 +185,22 @@ bool Engine::applyParameterUpdate(std::uint32_t parameter_id, float normalized_v
   return setTrackParameters(track_index, parameters);
 }
 
+bool Engine::applyParameterUpdates(const ff_parameter_update_t* updates, std::size_t count) noexcept {
+  if (updates == nullptr) {
+    return false;
+  }
+
+  bool all_applied = true;
+  for (std::size_t index = 0; index < count; ++index) {
+    const auto& update = updates[index];
+    if (!applyParameterUpdate(update.parameter_id, update.normalized_value)) {
+      all_applied = false;
+    }
+  }
+
+  return all_applied;
+}
+
 bool Engine::handleMidiNoteOn(std::uint8_t note, std::uint8_t velocity) noexcept {
   if (velocity == 0) {
     return false;

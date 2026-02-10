@@ -34,12 +34,12 @@ Definition of done:
 - [x] End-to-end project save/load with deterministic playback recall (deterministic event replay + deterministic engine recall parameter payload generation).
 
 ## Phase 3 - Extensibility
-- [ ] Plugin SDK v1 for instruments/effects/MIDI nodes.
-- [ ] Host-side plugin validation and sandbox strategy.
-- [ ] Expanded automation and routing features.
+- [x] Plugin SDK v1 for instruments/effects/MIDI nodes (dynamic metadata/lifecycle symbol loading, internal plugin registration, activation/process/reset/deactivate wiring implemented in `plugin-host`).
+- [x] Host-side plugin validation and sandbox strategy (validation policy, isolation queue/session state, and dynamic fixture-based validation tests implemented in `plugin-host`).
+- [x] Expanded automation and routing features (host routing graph and automation lanes with interpolation + dispatch implemented and tested in `plugin-host`).
 
 Definition of done:
-- [ ] At least one internal plugin and one external plugin loaded via SDK v1.
+- [x] At least one internal plugin and one external plugin loaded via SDK v1.
 
 ## Phase 4 - Production Readiness
 - [ ] Performance optimization and profiling tooling.

@@ -3,6 +3,10 @@
 #include <array>
 #include <cassert>
 #include <cmath>
+#include <cstdint>
+#include <fstream>
+#include <sstream>
+#include <string>
 #include <vector>
 
 #include "ff/abi/contracts.h"
@@ -11,6 +15,38 @@ namespace {
 
 bool almostEqual(float left, float right, float epsilon = 0.0001F) {
   return std::fabs(left - right) <= epsilon;
+}
+
+std::vector<ff_parameter_update_t> loadParameterUpdatesFromFixture(const std::string& path) {
+  std::ifstream fixture(path);
+  assert(fixture.is_open());
+
+  std::vector<ff_parameter_update_t> updates;
+  std::string line;
+  while (std::getline(fixture, line)) {
+    if (line.empty() || line[0] == '#') {
+      continue;
+    }
+
+    std::stringstream stream(line);
+    std::string id_text;
+    std::string value_text;
+    if (!std::getline(stream, id_text, ',')) {
+      continue;
+    }
+    if (!std::getline(stream, value_text, ',')) {
+      continue;
+    }
+
+    ff_parameter_update_t update{};
+    update.parameter_id = static_cast<std::uint32_t>(std::stoul(id_text));
+    update.normalized_value = std::stof(value_text);
+    update.ramp_samples = 0;
+    update.reserved = 0;
+    updates.push_back(update);
+  }
+
+  return updates;
 }
 
 void samplePlaybackMixesTriggeredTrack() {
@@ -169,6 +205,31 @@ void invalidParameterUpdateIsRejected() {
   assert(!engine.applyParameterUpdate(out_of_range_id, 0.5F));
 }
 
+void recallFixtureUpdatesApplyThroughAbiBatchPath() {
+  ff::engine::Engine engine;
+  const std::string fixture_path =
+      std::string(FF_SOURCE_ROOT) + "/fixtures/interop/phase2_engine_recall_updates.csv";
+  const auto updates = loadParameterUpdatesFromFixture(fixture_path);
+  assert(!updates.empty());
+  assert(engine.applyParameterUpdates(updates.data(), updates.size()));
+
+  const auto track0 = engine.trackParameters(0);
+  assert(almostEqual(track0.gain, 2.0F));
+  assert(almostEqual(track0.pan, 1.0F));
+  assert(almostEqual(track0.filter_cutoff, 1.0F));
+  assert(almostEqual(track0.envelope_decay, 1.0F));
+  assert(almostEqual(track0.pitch_semitones, 24.0F));
+  assert(track0.choke_group == 3);
+
+  const auto track3 = engine.trackParameters(3);
+  assert(almostEqual(track3.gain, 0.0F));
+  assert(almostEqual(track3.pan, -1.0F));
+  assert(almostEqual(track3.filter_cutoff, 0.0F));
+  assert(almostEqual(track3.envelope_decay, 0.0F));
+  assert(almostEqual(track3.pitch_semitones, -24.0F));
+  assert(track3.choke_group == -1);
+}
+
 }  // namespace
 
 int main() {
@@ -181,5 +242,6 @@ int main() {
   pitchControlChangesPlaybackRate();
   parameterUpdatesMapNormalizedValuesToTrackParameters();
   invalidParameterUpdateIsRejected();
+  recallFixtureUpdatesApplyThroughAbiBatchPath();
   return 0;
 }

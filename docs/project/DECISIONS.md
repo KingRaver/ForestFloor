@@ -98,3 +98,81 @@ Template:
 - Consequences
   - ABI constants must remain synchronized between C and Rust.
   - Cross-language recall behavior is deterministic and directly testable.
+
+## ADR-0006
+- Date: 2026-02-10
+- Status: Accepted
+- Context
+  - Phase 3 requires a plugin SDK baseline and host-side validation before loading external nodes.
+  - Unsafe plugins must not silently enter the real-time path.
+- Decision
+  - Implement host-side validation on `PluginDescriptor` + `PluginBinaryInfo`.
+  - Reject plugins on incompatible SDK major, missing lifecycle entrypoints, non-RT-safe process, or dynamic allocation on process path.
+  - Accept plugins with isolation warnings and mark them `requires_isolation`.
+- Alternatives considered
+  - Trust plugin self-declaration with no validation.
+  - Reject all warning-class plugins outright.
+- Consequences
+  - Loader policy is explicit and testable in `plugin-host` unit tests.
+  - Isolation execution model remains a follow-up implementation.
+
+## ADR-0007
+- Date: 2026-02-10
+- Status: Accepted
+- Context
+  - Control plane emits ABI parameter updates in Rust, while engine applies them in C++.
+  - Contract drift across language boundaries must be caught early.
+- Decision
+  - Add a shared interop fixture (`fixtures/interop/phase2_engine_recall_updates.csv`) consumed by:
+    - Rust recall tests (`control-rs`)
+    - C++ engine batch-apply tests (`engine-cpp`)
+  - Add engine batch update API using `ff_parameter_update_t` arrays.
+- Alternatives considered
+  - Keep separate per-language tests with no shared fixture.
+  - Build full Rust<->C++ runtime FFI harness immediately.
+- Consequences
+  - Cross-language parameter contract is validated in CI without new external build dependencies.
+  - Runtime FFI harness can be layered later without losing contract coverage.
+
+## ADR-0008
+- Date: 2026-02-10
+- Status: Accepted
+- Context
+  - Phase 3 needs actual plugin binary loading and symbol validation, not metadata-only registration.
+  - Isolation-marked plugins need a host execution path separate from in-process loading semantics.
+- Decision
+  - Add dynamic binary loading in `plugin-host`:
+    - resolve metadata symbols `ff_plugin_get_descriptor_v1` and `ff_plugin_get_binary_info_v1`
+    - resolve required lifecycle symbols (`ff_create`, `ff_prepare`, `ff_process`, `ff_reset`, `ff_destroy`)
+    - merge metadata-declared entrypoints with actual symbol presence before validation
+  - Add isolation session state model:
+    - pending isolation queue
+    - running isolation sessions via `startIsolationSession`
+- Alternatives considered
+  - Continue metadata-only registration for Phase 3.
+  - Require full process sandbox runtime before introducing any isolation state model.
+- Consequences
+  - Host now validates real binaries via fixture modules in CI.
+  - Isolation execution is explicit in host state, while IPC/process sandbox execution remains follow-up work.
+
+## ADR-0009
+- Date: 2026-02-10
+- Status: Accepted
+- Context
+  - Phase 3 requires complete SDK wiring, not only binary admission checks.
+  - Extensibility also requires host-managed routing and automation dispatch primitives.
+- Decision
+  - Extend `plugin-host` with SDK v1 runtime lifecycle APIs:
+    - internal plugin registration with lifecycle callbacks
+    - external plugin binary loading via metadata/lifecycle symbols
+    - activation/process/reset/deactivation runtime controls
+  - Add host routing graph and automation lane services:
+    - route endpoints (`host.input`, plugin ids, `host.master`)
+    - automation lanes with deterministic point interpolation to parameter updates
+  - Validate with integration tests that load one internal plugin and one external plugin and drive full lifecycle + routing/automation behavior.
+- Alternatives considered
+  - Keep lifecycle execution outside `plugin-host` and only expose metadata.
+  - Implement routing/automation only in control plane with no host contract.
+- Consequences
+  - Phase 3 definition-of-done is testable in one module.
+  - Future isolated execution backends can reuse existing routing/automation and lifecycle surfaces.

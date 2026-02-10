@@ -46,6 +46,7 @@ class Engine final {
   bool setTrackParameters(std::size_t track_index, TrackParameters parameters) noexcept;
   [[nodiscard]] TrackParameters trackParameters(std::size_t track_index) const noexcept;
   bool applyParameterUpdate(std::uint32_t parameter_id, float normalized_value) noexcept;
+  bool applyParameterUpdates(const ff_parameter_update_t* updates, std::size_t count) noexcept;
 
   bool handleMidiNoteOn(std::uint8_t note, std::uint8_t velocity) noexcept;
   void setPadBaseNote(std::uint8_t base_note) noexcept;

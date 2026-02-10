@@ -275,7 +275,7 @@ fn samples_per_step(sample_rate_hz: u32, bpm: f32) -> f64 {
     f64::from(sample_rate_hz) * 60.0 / f64::from(safe_bpm) / 4.0
 }
 
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TrackRecall {
     pub sample_id: Option<String>,
     pub choke_group: Option<u8>,
@@ -284,6 +284,20 @@ pub struct TrackRecall {
     pub filter_cutoff_normalized: u8,
     pub envelope_decay_normalized: u8,
     pub pitch_normalized: u8,
+}
+
+impl Default for TrackRecall {
+    fn default() -> Self {
+        Self {
+            sample_id: None,
+            choke_group: None,
+            gain_normalized: 127,
+            pan_normalized: 64,
+            filter_cutoff_normalized: 127,
+            envelope_decay_normalized: 127,
+            pitch_normalized: 64,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -533,6 +547,7 @@ pub fn engine_recall_from_project(
 mod tests {
     use abi_rs::{
         ff_track_parameter_id, FF_PARAM_SLOT_CHOKE_GROUP, FF_PARAM_SLOT_GAIN, FF_PARAM_SLOT_PAN,
+        FF_PARAM_TRACK_BASE, FF_PARAM_TRACK_STRIDE,
     };
     use presets_rs::{
         load_project_from_text, save_project_to_text, Kit, Pattern as PresetPattern, PatternStep,
@@ -544,6 +559,71 @@ mod tests {
         Sequencer, Step, Transport, DEFAULT_BPM, MAX_BPM, MAX_SWING, MIN_BPM, STEPS_PER_PATTERN,
         TRACK_COUNT,
     };
+
+    const PHASE2_ENGINE_RECALL_FIXTURE: &str =
+        include_str!("../../../fixtures/interop/phase2_engine_recall_updates.csv");
+
+    fn canonical_fixture_project() -> Project {
+        let mut project = Project {
+            name: "phase2-fixture".to_string(),
+            kits: vec![Kit::default()],
+            active_kit: Some(0),
+            patterns: vec![PresetPattern::default()],
+            active_pattern: Some(0),
+        };
+        project.kits[0].set_track_controls(
+            0,
+            TrackControls {
+                gain: 1.0,
+                pan: 1.0,
+                filter_cutoff: 1.0,
+                envelope_decay: 1.0,
+                pitch_semitones: 24.0,
+                choke_group: Some(3),
+            },
+        );
+        project.kits[0].set_track_controls(
+            3,
+            TrackControls {
+                gain: 0.0,
+                pan: -1.0,
+                filter_cutoff: 0.0,
+                envelope_decay: 0.0,
+                pitch_semitones: -24.0,
+                choke_group: None,
+            },
+        );
+        project
+    }
+
+    fn track_index_from_parameter_id(parameter_id: u32) -> Option<u8> {
+        if parameter_id < FF_PARAM_TRACK_BASE {
+            return None;
+        }
+
+        let track_offset = parameter_id - FF_PARAM_TRACK_BASE;
+        let track_index = (track_offset / FF_PARAM_TRACK_STRIDE) as u8;
+        (track_index < TRACK_COUNT as u8).then_some(track_index)
+    }
+
+    fn format_updates_csv_for_tracks(
+        updates: &[abi_rs::FfParameterUpdate],
+        tracks: &[u8],
+    ) -> String {
+        let mut lines = vec!["# parameter_id,normalized_value".to_string()];
+        for update in updates {
+            if let Some(track_index) = track_index_from_parameter_id(update.parameter_id) {
+                if tracks.contains(&track_index) {
+                    lines.push(format!(
+                        "{},{}",
+                        update.parameter_id,
+                        format!("{:.6}", update.normalized_value)
+                    ));
+                }
+            }
+        }
+        lines.join("\n")
+    }
 
     #[test]
     fn pattern_supports_eight_tracks_and_sixteen_steps() {
@@ -810,6 +890,14 @@ mod tests {
             .find(|update| update.parameter_id == choke_id)
             .expect("choke parameter update should exist");
         assert!((choke_update.normalized_value - 0.25).abs() < 0.0001);
+    }
+
+    #[test]
+    fn phase2_recall_fixture_matches_generated_parameter_updates() {
+        let project = canonical_fixture_project();
+        let recall = engine_recall_from_project(&project, 48_000).expect("recall should map");
+        let rendered = format_updates_csv_for_tracks(&recall.parameter_updates, &[0, 3]);
+        assert_eq!(rendered.trim(), PHASE2_ENGINE_RECALL_FIXTURE.trim());
     }
 
     #[test]

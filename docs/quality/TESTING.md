@@ -12,6 +12,10 @@
 - Integration tests
   - Control plane -> engine event flow.
   - Project load/save roundtrip consistency.
+  - Shared ABI fixture checks across Rust and C++ for recall parameter updates.
+  - Plugin host dynamic-load fixtures (valid, isolated, missing-symbol) for symbol validation paths.
+  - Plugin host SDK v1 lifecycle wiring tests (internal + external plugin activation/process/reset/deactivate).
+  - Plugin host routing graph and automation interpolation dispatch tests.
 - Real-time regression tests
   - Callback duration distribution.
   - XRun detection under stress scenarios.
