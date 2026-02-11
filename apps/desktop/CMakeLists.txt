@@ -33,6 +33,7 @@ if(APPLE)
   find_library(FF_FRAMEWORK_COREAUDIO CoreAudio REQUIRED)
   find_library(FF_FRAMEWORK_COREMIDI CoreMIDI REQUIRED)
   find_library(FF_FRAMEWORK_COREFOUNDATION CoreFoundation REQUIRED)
+  find_library(FF_FRAMEWORK_QUARTZCORE QuartzCore REQUIRED)
 
   set_source_files_properties("${FF_APP_ICON_ICNS}" PROPERTIES
     MACOSX_PACKAGE_LOCATION "Resources"
@@ -54,6 +55,7 @@ if(APPLE)
     "${FF_FRAMEWORK_COREAUDIO}"
     "${FF_FRAMEWORK_COREMIDI}"
     "${FF_FRAMEWORK_COREFOUNDATION}"
+    "${FF_FRAMEWORK_QUARTZCORE}"
   )
 endif()
 

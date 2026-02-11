@@ -136,7 +136,7 @@ class SimulatedAudioBackend final : public AudioBackend {
 
 }  // namespace
 
-#if !defined(APPLE)
+#if !defined(__APPLE__)
 std::unique_ptr<AudioBackend> createAudioBackend() {
   return std::make_unique<SimulatedAudioBackend>();
 }

@@ -43,6 +43,7 @@ class AudioBackend {
 
   [[nodiscard]] virtual std::vector<AudioDeviceInfo> outputDevices() const = 0;
   [[nodiscard]] virtual AudioBackendStats stats() const noexcept = 0;
+  [[nodiscard]] virtual std::uint32_t actualSampleRate() const noexcept { return 0; }
 };
 
 [[nodiscard]] std::unique_ptr<AudioBackend> createAudioBackend();

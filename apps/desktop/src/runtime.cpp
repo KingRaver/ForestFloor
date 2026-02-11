@@ -210,6 +210,15 @@ bool Runtime::start(const RuntimeConfig& config, std::string* error_message) {
     return false;
   }
 
+  // The audio backend may negotiate a different sample rate with the
+  // hardware (e.g. 44100 instead of our requested 48000).  Feed the
+  // actual rate back to the engine so timing calculations are correct.
+  const auto actual_rate = audio_backend_->actualSampleRate();
+  if (actual_rate > 0 && actual_rate != config_.audio.sample_rate_hz) {
+    config_.audio.sample_rate_hz = actual_rate;
+    engine_.setAudioDeviceConfig(config_.audio);
+  }
+
   std::string midi_error;
   const bool midi_started = midi_backend_->start(
       config_.midi_device_id,
@@ -852,12 +861,20 @@ void Runtime::handleAudioCallback(float* interleaved_output, std::uint32_t frame
     return;
   }
 
+  audio_callback_count_.fetch_add(1, std::memory_order_relaxed);
+
+  // Grow scratch buffer if the hardware delivers more frames than expected.
+  // This allocation only happens once (or very rarely) after startup.
   if (render_scratch_.size() < frames) {
     render_scratch_.resize(frames, 0.0F);
   }
 
-  std::vector<TriggerEvent> events;
-  events.reserve(64);
+  // Re-use a pre-reserved scratch vector to avoid per-callback allocation.
+  thread_local std::vector<TriggerEvent> events;
+  events.clear();
+  if (events.capacity() < 64) {
+    events.reserve(64);
+  }
 
   applyPendingCommands(engine_, sequencer_, &events);
   processSequencer(frames, sequencer_, &events);

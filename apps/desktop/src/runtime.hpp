@@ -197,6 +197,7 @@ class Runtime final {
   std::atomic<std::uint32_t> playhead_step_{0};
   std::atomic<std::uint64_t> timeline_sample_{0};
   std::atomic<bool> running_{false};
+  std::atomic<std::uint64_t> audio_callback_count_{0};
 
   mutable std::mutex project_mutex_;
   ProjectModel project_model_{};

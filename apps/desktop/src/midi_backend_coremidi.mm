@@ -1,6 +1,6 @@
 #include "midi_backend.hpp"
 
-#if defined(APPLE)
+#if defined(__APPLE__)
 
 #include <algorithm>
 #include <atomic>

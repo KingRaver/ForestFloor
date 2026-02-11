@@ -47,7 +47,7 @@ class NullMidiBackend final : public MidiBackend {
 
 }  // namespace
 
-#if !defined(APPLE)
+#if !defined(__APPLE__)
 std::unique_ptr<MidiBackend> createMidiBackend() {
   return std::make_unique<NullMidiBackend>();
 }

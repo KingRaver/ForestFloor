@@ -9,7 +9,7 @@
 
 #include "runtime.hpp"
 
-#if defined(APPLE)
+#if defined(__APPLE__)
 #include "macos_ui.hpp"
 #endif
 
@@ -92,7 +92,7 @@ int main(int argc, char** argv) {
       return runHeadless(&runtime, &diagnostics, options.headless_soak);
     }
 
-#if defined(APPLE)
+#if defined(__APPLE__)
     return runMacDesktopApp(&runtime, &diagnostics);
 #else
     std::cout << "Forest Floor desktop runtime started in headless mode on this platform.\n";

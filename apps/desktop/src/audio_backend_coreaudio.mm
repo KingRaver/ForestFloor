@@ -1,6 +1,6 @@
 #include "audio_backend.hpp"
 
-#if defined(APPLE)
+#if defined(__APPLE__)
 
 #include <algorithm>
 #include <atomic>
@@ -88,6 +88,36 @@ bool hasOutputChannels(AudioDeviceID device_id) {
   return channels > 0;
 }
 
+bool getDefaultOutputDevice(AudioDeviceID* device_id) {
+  if (device_id == nullptr) {
+    return false;
+  }
+
+  AudioObjectPropertyAddress address{
+      .mSelector = kAudioHardwarePropertyDefaultOutputDevice,
+      .mScope = kAudioObjectPropertyScopeGlobal,
+      .mElement = kAudioObjectPropertyElementMain,
+  };
+
+  AudioDeviceID detected = kAudioObjectUnknown;
+  UInt32 size = sizeof(detected);
+  if (AudioObjectGetPropertyData(kAudioObjectSystemObject,
+                                 &address,
+                                 0,
+                                 nullptr,
+                                 &size,
+                                 &detected) != noErr) {
+    return false;
+  }
+
+  if (detected == kAudioObjectUnknown || !hasOutputChannels(detected)) {
+    return false;
+  }
+
+  *device_id = detected;
+  return true;
+}
+
 class CoreAudioBackend final : public AudioBackend {
  public:
   ~CoreAudioBackend() override { stop(); }
@@ -107,6 +137,38 @@ class CoreAudioBackend final : public AudioBackend {
       return false;
     }
 
+    // Store callback BEFORE starting the audio unit so the render
+    // callback never sees a null function pointer.
+    config_ = config;
+    callback_ = std::move(callback);
+
+    // Resolve the target device.
+    AudioDeviceID target_device = kAudioObjectUnknown;
+
+    if (!config_.device_id.empty() && config_.device_id != "default") {
+      try {
+        const auto parsed = static_cast<AudioDeviceID>(
+            std::stoul(config_.device_id));
+        if (parsed != kAudioObjectUnknown && hasOutputChannels(parsed)) {
+          target_device = parsed;
+        }
+      } catch (...) {}
+    }
+
+    if (target_device == kAudioObjectUnknown) {
+      if (!getDefaultOutputDevice(&target_device)) {
+        if (error_message != nullptr) {
+          *error_message = "no default output device found";
+        }
+        callback_ = nullptr;
+        return false;
+      }
+    }
+
+    std::string dev_name;
+    getDeviceName(target_device, &dev_name);
+    NSLog(@"[FF-CA] Using device %u '%s'", target_device, dev_name.c_str());
+
     AudioComponentDescription description{};
     description.componentType = kAudioUnitType_Output;
     description.componentSubType = kAudioUnitSubType_HALOutput;
@@ -117,6 +179,7 @@ class CoreAudioBackend final : public AudioBackend {
       if (error_message != nullptr) {
         *error_message = "failed to find HAL output audio component";
       }
+      callback_ = nullptr;
       return false;
     }
 
@@ -125,9 +188,11 @@ class CoreAudioBackend final : public AudioBackend {
       if (error_message != nullptr) {
         *error_message = "failed to instantiate HAL output audio unit";
       }
+      callback_ = nullptr;
       return false;
     }
 
+    // Enable output on bus 0, disable input on bus 1.
     UInt32 enable_output = 1;
     status = AudioUnitSetProperty(audio_unit_,
                                   kAudioOutputUnitProperty_EnableIO,
@@ -140,6 +205,7 @@ class CoreAudioBackend final : public AudioBackend {
       if (error_message != nullptr) {
         *error_message = "failed enabling output on HAL audio unit";
       }
+      callback_ = nullptr;
       return false;
     }
 
@@ -155,36 +221,43 @@ class CoreAudioBackend final : public AudioBackend {
       if (error_message != nullptr) {
         *error_message = "failed disabling input on HAL audio unit";
       }
+      callback_ = nullptr;
       return false;
     }
 
-    AudioDeviceID selected_device = kAudioObjectUnknown;
-    if (!config.device_id.empty() && config.device_id != "default") {
-      try {
-        const auto parsed = static_cast<AudioDeviceID>(
-            std::stoul(config.device_id));
-        selected_device = parsed;
-      } catch (...) {
-        selected_device = kAudioObjectUnknown;
+    // Set the output device.
+    status = AudioUnitSetProperty(audio_unit_,
+                                  kAudioOutputUnitProperty_CurrentDevice,
+                                  kAudioUnitScope_Global,
+                                  0,
+                                  &target_device,
+                                  sizeof(target_device));
+    if (status != noErr) {
+      cleanupAudioUnit();
+      if (error_message != nullptr) {
+        *error_message = "failed setting output device";
       }
+      callback_ = nullptr;
+      return false;
     }
 
-    if (selected_device != kAudioObjectUnknown) {
-      status = AudioUnitSetProperty(audio_unit_,
-                                    kAudioOutputUnitProperty_CurrentDevice,
-                                    kAudioUnitScope_Global,
-                                    0,
-                                    &selected_device,
-                                    sizeof(selected_device));
-      if (status != noErr) {
-        cleanupAudioUnit();
-        if (error_message != nullptr) {
-          *error_message = "failed setting selected output device";
-        }
-        return false;
-      }
+    // Query the hardware's native stream format to match sample rate.
+    AudioStreamBasicDescription hw_format{};
+    UInt32 hw_format_size = sizeof(hw_format);
+    status = AudioUnitGetProperty(audio_unit_,
+                                  kAudioUnitProperty_StreamFormat,
+                                  kAudioUnitScope_Output,
+                                  0,
+                                  &hw_format,
+                                  &hw_format_size);
+    if (status == noErr && hw_format.mSampleRate > 0) {
+      NSLog(@"[FF-CA] Hardware format: rate=%.0f ch=%u bits=%u flags=0x%x",
+            hw_format.mSampleRate, hw_format.mChannelsPerFrame,
+            hw_format.mBitsPerChannel, hw_format.mFormatFlags);
+      config_.sample_rate_hz = static_cast<std::uint32_t>(hw_format.mSampleRate);
     }
 
+    // Set render callback.
     AURenderCallbackStruct callback_struct{};
     callback_struct.inputProc = &CoreAudioBackend::renderCallback;
     callback_struct.inputProcRefCon = this;
@@ -199,11 +272,13 @@ class CoreAudioBackend final : public AudioBackend {
       if (error_message != nullptr) {
         *error_message = "failed setting CoreAudio render callback";
       }
+      callback_ = nullptr;
       return false;
     }
 
+    // Set our desired stream format on the input scope (what we provide).
     AudioStreamBasicDescription stream{};
-    stream.mSampleRate = static_cast<Float64>(config.sample_rate_hz);
+    stream.mSampleRate = static_cast<Float64>(config_.sample_rate_hz);
     stream.mFormatID = kAudioFormatLinearPCM;
     stream.mFormatFlags = kAudioFormatFlagsNativeFloatPacked;
     stream.mBitsPerChannel = 32;
@@ -223,10 +298,36 @@ class CoreAudioBackend final : public AudioBackend {
       if (error_message != nullptr) {
         *error_message = "failed setting CoreAudio stream format";
       }
+      callback_ = nullptr;
       return false;
     }
 
-    UInt32 max_frames = config.buffer_size_frames;
+    // Query the device's current I/O buffer frame size so we can set
+    // MaximumFramesPerSlice large enough.  If the AudioUnit is asked to
+    // render more frames than this limit the render callback is never
+    // invoked and CoreAudio logs kAudioUnitErr_TooManyFramesToProcess
+    // (-10874).
+    UInt32 hw_buffer_frames = 0;
+    UInt32 hw_buf_size = sizeof(hw_buffer_frames);
+    AudioObjectPropertyAddress buf_address{
+        .mSelector = kAudioDevicePropertyBufferFrameSize,
+        .mScope = kAudioDevicePropertyScopeOutput,
+        .mElement = kAudioObjectPropertyElementMain,
+    };
+    if (AudioObjectGetPropertyData(target_device, &buf_address, 0, nullptr,
+                                   &hw_buf_size, &hw_buffer_frames) == noErr &&
+        hw_buffer_frames > 0) {
+      NSLog(@"[FF-CA] Hardware buffer frame size: %u", hw_buffer_frames);
+    } else {
+      hw_buffer_frames = 1024;
+      NSLog(@"[FF-CA] Could not query hardware buffer size, defaulting to %u", hw_buffer_frames);
+    }
+
+    // Use the larger of the hardware buffer size and our requested size,
+    // with a floor of 512 to avoid edge cases on modern macOS.
+    UInt32 max_frames = std::max({hw_buffer_frames,
+                                  config_.buffer_size_frames,
+                                  static_cast<UInt32>(512)});
     status = AudioUnitSetProperty(audio_unit_,
                                   kAudioUnitProperty_MaximumFramesPerSlice,
                                   kAudioUnitScope_Global,
@@ -238,8 +339,10 @@ class CoreAudioBackend final : public AudioBackend {
       if (error_message != nullptr) {
         *error_message = "failed setting CoreAudio max frames per slice";
       }
+      callback_ = nullptr;
       return false;
     }
+    NSLog(@"[FF-CA] MaximumFramesPerSlice set to %u", max_frames);
 
     status = AudioUnitInitialize(audio_unit_);
     if (status != noErr) {
@@ -247,15 +350,7 @@ class CoreAudioBackend final : public AudioBackend {
       if (error_message != nullptr) {
         *error_message = "failed to initialize CoreAudio unit";
       }
-      return false;
-    }
-
-    status = AudioOutputUnitStart(audio_unit_);
-    if (status != noErr) {
-      cleanupAudioUnit();
-      if (error_message != nullptr) {
-        *error_message = "failed to start CoreAudio output";
-      }
+      callback_ = nullptr;
       return false;
     }
 
@@ -265,8 +360,18 @@ class CoreAudioBackend final : public AudioBackend {
       last_callback_started_ = {};
     }
 
-    config_ = config;
-    callback_ = std::move(callback);
+    status = AudioOutputUnitStart(audio_unit_);
+    if (status != noErr) {
+      cleanupAudioUnit();
+      if (error_message != nullptr) {
+        *error_message = "failed to start CoreAudio output";
+      }
+      callback_ = nullptr;
+      return false;
+    }
+
+    NSLog(@"[FF-CA] CoreAudio started: device=%u '%s' rate=%u",
+          target_device, dev_name.c_str(), config_.sample_rate_hz);
     running_.store(true, std::memory_order_release);
     return true;
   }
@@ -358,6 +463,10 @@ class CoreAudioBackend final : public AudioBackend {
   [[nodiscard]] AudioBackendStats stats() const noexcept override {
     std::lock_guard<std::mutex> lock(stats_mutex_);
     return stats_;
+  }
+
+  [[nodiscard]] std::uint32_t actualSampleRate() const noexcept override {
+    return config_.sample_rate_hz;
   }
 
  private:
