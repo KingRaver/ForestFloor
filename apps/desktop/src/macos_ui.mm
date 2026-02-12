@@ -67,11 +67,12 @@ static NSColor* kColorButtonBg = nil;
 static NSColor* kColorButtonText = nil;
 static NSColor* kColorPlayActive = nil;
 static NSColor* kColorPadBg = nil;
+static NSColor* kColorPadText = nil;
 
 static void InitTheme() {
-  kColorBackground   = [NSColor colorWithRed:0.000 green:0.125 blue:0.761 alpha:1.0];
-  kColorPanel        = [NSColor colorWithRed:0.082 green:0.106 blue:0.329 alpha:1.0];
-  kColorPanelBorder  = [NSColor colorWithRed:0.839 green:0.878 blue:0.910 alpha:1.0];
+  kColorBackground   = [NSColor colorWithRed:0.043 green:0.176 blue:0.447 alpha:1.0];
+  kColorPanel        = [NSColor colorWithRed:0.035 green:0.573 blue:0.761 alpha:1.0];
+  kColorPanelBorder  = [NSColor colorWithRed:0.965 green:0.906 blue:0.737 alpha:1.0];
   kColorTextPrimary  = [NSColor colorWithRed:0.910 green:0.918 blue:0.930 alpha:1.0];
   kColorTextSecondary = [NSColor colorWithRed:0.824 green:0.992 blue:1.000 alpha:1.0];
   kColorTextDim      = [NSColor colorWithRed:0.851 green:0.992 blue:1.000 alpha:1.0];
@@ -83,7 +84,8 @@ static void InitTheme() {
   kColorButtonBg     = [NSColor colorWithRed:0.165 green:0.180 blue:0.200 alpha:1.0];
   kColorButtonText   = [NSColor colorWithRed:0.784 green:0.800 blue:0.816 alpha:1.0];
   kColorPlayActive   = [NSColor colorWithRed:0.937 green:0.267 blue:0.267 alpha:1.0];
-  kColorPadBg        = [NSColor colorWithRed:0.914 green:0.702 blue:1.000 alpha:1.0];
+  kColorPadBg        = [NSColor colorWithRed:0.039 green:0.769 blue:0.878 alpha:1.0];
+  kColorPadText      = [NSColor colorWithRed:0.600 green:0.976 blue:1.000 alpha:1.0];
 }
 
 // ---------------------------------------------------------------------------
@@ -453,7 +455,7 @@ static CGFloat StepColumnX(CGFloat base_x, std::size_t step) {
     NSButton* pad = MakeStyledButton(
         NSMakeRect(16 + (pad_w + kPadGap) * track, 6, pad_w, kPadHeight),
         label, self, @selector(onPadPressed:),
-        kColorPadBg, [NSColor colorWithRed:0.600 green:0.976 blue:1.000 alpha:1.0],
+        kColorPadBg, kColorPadText,
         15.0, NSFontWeightBold, kPadCornerRadius);
     [pad setTag:static_cast<NSInteger>(track)];
     pad.layer.borderWidth = 1.0;
@@ -761,14 +763,46 @@ static CGFloat StepColumnX(CGFloat base_x, std::size_t step) {
 // ---------------------------------------------------------------------------
 
 - (void)flashPadButton:(NSButton*)button {
-  CABasicAnimation* flash = [CABasicAnimation animationWithKeyPath:@"backgroundColor"];
-  flash.fromValue = (id)[kColorAccent CGColor];
-  flash.toValue = (id)[kColorPadBg CGColor];
-  flash.duration = 0.15;
-  flash.timingFunction = [CAMediaTimingFunction
-      functionWithName:kCAMediaTimingFunctionEaseOut];
-  [button.layer addAnimation:flash forKey:@"padFlash"];
+  // --- Scale bounce: press down then spring back ---
+  CAKeyframeAnimation* scale = [CAKeyframeAnimation animationWithKeyPath:@"transform.scale"];
+  scale.values   = @[@1.0, @0.88, @1.04, @1.0];
+  scale.keyTimes = @[@0.0, @0.25, @0.65, @1.0];
+  scale.duration = 0.35;
+  scale.timingFunction = [CAMediaTimingFunction
+      functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
+
+  // --- Color invert: cyan flash then back to purple ---
+  CAKeyframeAnimation* bg = [CAKeyframeAnimation animationWithKeyPath:@"backgroundColor"];
+  bg.values   = @[(id)[kColorPadText CGColor],
+                  (id)[kColorPadText CGColor],
+                  (id)[kColorPadBg CGColor]];
+  bg.keyTimes = @[@0.0, @0.45, @1.0];
+  bg.duration = 0.35;
+
+  // --- Border flash ---
+  CAKeyframeAnimation* border = [CAKeyframeAnimation animationWithKeyPath:@"borderColor"];
+  border.values   = @[(id)[[NSColor whiteColor] CGColor],
+                      (id)[[NSColor whiteColor] CGColor],
+                      (id)[kColorPanelBorder CGColor]];
+  border.keyTimes = @[@0.0, @0.45, @1.0];
+  border.duration = 0.35;
+
+  CAAnimationGroup* group = [CAAnimationGroup animation];
+  group.animations = @[scale, bg, border];
+  group.duration = 0.35;
+  [button.layer addAnimation:group forKey:@"padFlash"];
+
+  // Final resting state
   button.layer.backgroundColor = [kColorPadBg CGColor];
+  button.layer.borderColor = [kColorPanelBorder CGColor];
+
+  // Invert text color during the press, restore after
+  NSString* title = [[button attributedTitle] string];
+  [button setAttributedTitle:StyledTitle(title, kColorBackground, 15.0, NSFontWeightBold)];
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.16 * NSEC_PER_SEC)),
+      dispatch_get_main_queue(), ^{
+    [button setAttributedTitle:StyledTitle(title, kColorPadText, 15.0, NSFontWeightBold)];
+  });
 }
 
 - (void)playInteractionSound {

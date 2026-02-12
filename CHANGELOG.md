@@ -123,9 +123,31 @@ Buttons not reactive, no sounds being made from the desktop drum machine app.
 | 82 | MacBook Air Microphone | No | - | - | - | Input only |
 | 51 | rekordbox Aggregate Device | No | - | - | - | No output channels |
 
-## Current State (All Issues Resolved)
+## Issue #8: Trigger Pad Visual Feedback
+
+### Problem
+Trigger pads produce sound when clicked but there is no clear visual state change to confirm the press was registered. The user cannot visually tell whether a pad click was successful.
+
+### Attempt A: Scale bounce + color invert (CAAnimationGroup)
+- Added `CAKeyframeAnimation` on `transform.scale`: 1.0 → 0.88 → 1.04 → 1.0 over 350ms
+- Added `CAKeyframeAnimation` on `backgroundColor`: purple → cyan (held ~160ms) → purple
+- Added `CAKeyframeAnimation` on `borderColor`: panel border → white (held ~160ms) → panel border
+- Inverted text color via `dispatch_after`: cyan → deep blue, restored after 160ms
+- Grouped all three layer animations in a `CAAnimationGroup` (350ms, ease-in-ease-out)
+- Extracted pad text color into `kColorPadText` theme constant for reuse
+- **Result**: Animation fires but does not achieve the desired visual feedback — the state change is not distinct enough to register at a glance during fast playing
+- **Status: Did not meet goal** — need to explore other approaches
+
+### Ideas for Future Attempts
+- Custom `NSView` subclass with explicit pressed/unpressed draw states instead of animation
+- Toggle a persistent "active" style (e.g. bright border or inverted colors) that holds for a fixed duration
+- Use `NSTrackingArea` for mouseDown/mouseUp to show pressed state for the full duration of the physical click
+- Add a brief LED-style indicator dot adjacent to each pad
+
+## Current State (All Issues Resolved except #8)
 - `audio_backend_coreaudio.mm`: CoreAudio HALOutput with proper MaximumFramesPerSlice handling
 - `runtime.cpp`: Sample rate feedback from backend to engine, thread_local event vector
 - `macos_ui.mm`: Clean UI code, debug logging removed
+- `macos_ui.mm`: Trigger pad flash uses scale bounce + color invert (Attempt A — under review)
 - Headless smoke/soak tests pass
 - Audio callbacks firing at expected rate (~94/sec for 48000Hz/512 frames)
